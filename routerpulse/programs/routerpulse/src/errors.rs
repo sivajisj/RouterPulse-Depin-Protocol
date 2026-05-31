@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum RouterPulseError {
-    //  Protocol Errors 
+    // protocol
     #[msg("Reward rate must be greater than zero")]
     InvalidRewardRate,
 
@@ -15,22 +15,57 @@ pub enum RouterPulseError {
     #[msg("Protocol is currently paused")]
     ProtocolPaused,
 
-    #[msg("Unauthorized: only protocol authority can perform this action")]
+    #[msg("Protocol is already paused")]
+    AlreadyPaused,
+
+    #[msg("Protocol is not paused")]
+    NotPaused,
+
+    #[msg("Unauthorized")]
     Unauthorized,
 
-    //  Router Errors 
+    // router
     #[msg("Router ID cannot be empty")]
     RouterIdEmpty,
 
     #[msg("Router ID cannot exceed 32 characters")]
     RouterIdTooLong,
 
-    #[msg("Latitude must be between -90000000 and 90000000")]
+    #[msg("Invalid latitude")]
     InvalidLatitude,
 
-    #[msg("Longitude must be between -180000000 and 180000000")]
+    #[msg("Invalid longitude")]
     InvalidLongitude,
 
     #[msg("Arithmetic overflow")]
     Overflow,
+
+    #[msg("Router is not suspended")]
+    RouterNotSuspended,
+
+    // heartbeat
+    #[msg("Router is suspended")]
+    RouterSuspended,
+
+    #[msg("Router is decommissioned")]
+    RouterDecommissioned,
+
+    #[msg("Heartbeat too soon")]
+    HeartbeatTooSoon,
+
+    #[msg("Invalid timestamp")]
+    InvalidTimestamp,
+
+    // reward
+    #[msg("Router must be Active to claim rewards")]
+    RouterNotActive,
+
+    #[msg("No heartbeat sent yet")]
+    NoHeartbeatYet,
+
+    #[msg("No rewards to claim")]
+    NothingToClaim,
+
+    #[msg("Vault has insufficient balance")]
+    InsufficientVaultBalance,
 }
