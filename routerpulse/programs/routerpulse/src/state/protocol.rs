@@ -14,7 +14,8 @@ pub struct Protocol{
     pub total_routers: u64,
     pub total_rewards_distributed: u64,
     pub is_paused: bool,
-    pub bump: u8
+    pub bump: u8,
+    pub vault_bump: u8
 }
 
 impl Protocol{

@@ -4,6 +4,7 @@ pub mod errors;
 pub mod events;
 pub mod instructions;
 pub mod state;
+pub mod uptime;
 
 use instructions::*;
 
@@ -20,10 +21,7 @@ pub mod routerpulse {
         heartbeat_interval: i64,
     ) -> Result<()> {
         instructions::initialize_protocol::handler(
-            ctx,
-            reward_rate,
-            penalty_bps,
-            heartbeat_interval,
+            ctx, reward_rate, penalty_bps, heartbeat_interval,
         )
     }
 
@@ -34,10 +32,42 @@ pub mod routerpulse {
         location_long: i64,
     ) -> Result<()> {
         instructions::register_router::handler(
-            ctx,
-            router_id,
-            location_lat,
-            location_long,
+            ctx, router_id, location_lat, location_long,
         )
-    }                       
+    }
+
+    pub fn heartbeat(ctx: Context<Heartbeat>) -> Result<()> {
+        instructions::heartbeat::handler(ctx)
+    }
+
+    pub fn claim_reward(ctx: Context<ClaimReward>) -> Result<()> {
+        instructions::claim_reward::handler(ctx)
+    }
+
+    pub fn apply_penalty(ctx: Context<ApplyPenalty>) -> Result<()> {
+        instructions::apply_penalty::handler(ctx)
+    }
+
+    pub fn pause_protocol(ctx: Context<AdminProtocol>) -> Result<()> {
+        instructions::admin::pause_protocol(ctx)
+    }
+
+    pub fn resume_protocol(ctx: Context<AdminProtocol>) -> Result<()> {
+        instructions::admin::resume_protocol(ctx)
+    }
+
+    pub fn reinstate_router(ctx: Context<AdminRouter>) -> Result<()> {
+        instructions::admin::reinstate_router(ctx)
+    }
+
+    pub fn decommission_router(ctx: Context<AdminRouter>) -> Result<()> {
+        instructions::admin::decommission_router(ctx)
+    }
+
+    pub fn update_reward_rate(
+        ctx: Context<AdminProtocol>,
+        new_rate: u64,
+    ) -> Result<()> {
+        instructions::admin::update_reward_rate(ctx, new_rate)
+    }
 }
