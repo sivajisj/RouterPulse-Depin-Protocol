@@ -15,3 +15,4 @@ anchor test
 
 ## Architecture
 Router Simulator → Heartbeat → Anchor Program → PDA → Uptime Score → Rewards
+export PATH="/home/codespace/.local/share/solana/install/active_release/bin:$PATH"
