@@ -2,13 +2,13 @@
 
 A trustless Wi-Fi router uptime tracking and reward distribution protocol built on Solana.
 
-Inspired by the real infrastructure problem that Wi-Fi networks like Wifi Dabba are solving — operators currently self-report uptime with no way to verify it. RouterPulse replaces that with cryptographic proof stored on-chain.
+Inspired by the real infrastructure problem that Wi-Fi networks like Wifi Dabba are solving , operators currently self-report uptime with no way to verify it. RouterPulse replaces that with cryptographic proof stored on-chain.
 
 ---
 
 ## How It Works
 
-Every router sends a signed heartbeat transaction every few seconds. The program records that timestamp permanently on Solana. Nobody can fake it or change it after the fact. Rewards are calculated automatically based on verified uptime — no trust required between the operator and the network.
+Every router sends a signed heartbeat transaction every few seconds. The program records that timestamp permanently on Solana. Nobody can fake it or change it after the fact. Rewards are calculated automatically based on verified uptime , no trust required between the operator and the network.
 
 ```
 Router sends heartbeat
