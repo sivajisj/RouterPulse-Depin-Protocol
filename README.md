@@ -221,4 +221,4 @@ reward    =  elapsed seconds × reward rate × uptime % / 100
 
 ## Full Setup Guide
 
-For detailed setup instructions, troubleshooting, and demo walkthrough see [SETUP_AND_RUN_GUIDE.md](./SETUP_AND_RUN_GUIDE.md)
+For detailed setup instructions, troubleshooting, and demo walkthrough see [SETUP_AND_RUN_GUIDE.md](./routerpulse/SETUP_AND_RUN_GUIDE.md)
