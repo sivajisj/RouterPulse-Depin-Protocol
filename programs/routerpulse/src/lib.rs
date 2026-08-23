@@ -70,4 +70,23 @@ pub mod routerpulse {
     ) -> Result<()> {
         instructions::admin::update_reward_rate(ctx, new_rate)
     }
+
+    pub fn open_epoch(
+        ctx: Context<OpenEpoch>,
+        epoch_id: u64,
+        reward_budget: u64,
+        start_time: i64,
+        end_time: i64,
+    ) -> Result<()> {
+        instructions::open_epoch::handler(ctx, epoch_id, reward_budget, start_time, end_time)
+    }
+
+    pub fn finalize_epoch<'info>(
+        ctx: Context<'info, FinalizeEpoch<'info>>,
+        proof_root: [u8; 32],
+        total_network_weight: u64,
+        inputs: Vec<RewardInput>,
+    ) -> Result<()> {
+        instructions::finalize_epoch::handler(ctx, proof_root, total_network_weight, inputs)
+    }
 }

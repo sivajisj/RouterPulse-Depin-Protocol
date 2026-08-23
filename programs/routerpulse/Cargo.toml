@@ -22,13 +22,106 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = "1.0.1"
+# token + associated_token only — this program targets standard SPL Token,
+# not Token-2022 (see Protocol/treasury design notes in state/protocol.rs).
+anchor-spl = { version = "1.1.2", default-features = false, features = ["token", "associated_token"] }
 
 [dev-dependencies]
-litesvm = "0.10.0"
-solana-message = "3.0.1"
-solana-transaction = "3.0.2"
-solana-signer = "3.0.0"
-solana-keypair = "3.0.1"
+# ============================================================================
+# FRAGILE — DO NOT TOUCH without reading this block first.
+#
+# Every exact-pinned (=) crate from here down to the "Everything below"
+# marker exists to hold ONE consistent, compiling combination of
+# litesvm 0.14.0 + anchor-lang 1.1.2 + wincode 0.5.5. These three have no
+# officially-coordinated compatible version set right now: anchor-lang's
+# own (non-dev) dependency graph and litesvm's independently want
+# overlapping solana-* crates, and several of those crates switched from
+# wincode 0.5.x to 0.6.x at different, uncoordinated version boundaries.
+# `cargo update` (with no package args, or on any single package in this
+# block) WILL bump one of these past its wincode-0.5.x ceiling and
+# reintroduce a "there are multiple different versions of crate `wincode`
+# in the dependency graph" compile error in litesvm's own sysvar code —
+# this happened repeatedly while first pinning this set, one crate at a
+# time, each fix surfacing a new conflict one layer deeper.
+#
+# Before touching ANY pin in this block (including to intentionally
+# upgrade something):
+#   1. Check whether litesvm has shipped a release that compiles against
+#      a newer solana-program-runtime (the 4.2.x+ ExecutionRecord shape
+#      change is the original root cause — see the comment below).
+#   2. Check whether anchor-lang/anchor-spl have moved to a solana-*
+#      generation that's still wincode-0.5.x-compatible, or whether
+#      litesvm has moved to wincode 0.6.x — i.e. re-verify litesvm,
+#      anchor-lang, and wincode's major versions are still mutually
+#      compatible BEFORE changing any pin here, not after.
+#   3. If you do bump something, run `cargo tree -i wincode@0.6.1
+#      --target all` after every change — a non-empty result means the
+#      cascade is back, and you'll need to pin whatever crate it names
+#      next (that's exactly how this list was built).
+# ============================================================================
+# Bumped from the originally-pinned litesvm 0.10.0 to 0.14 (litesvm-token
+# needs a matching litesvm; 0.15.x pulls solana-program-runtime 4.2.x,
+# whose ExecutionRecord shape litesvm doesn't compile against yet — a real
+# upstream skew, not something fixable from our side). Every version below
+# is pinned exactly to what litesvm 0.14.0's own Cargo.toml declares, so
+# the resolver can't independently drift any of them to a "latest" that
+# breaks a sibling crate's trait derive (this happened repeatedly — see
+# PASS 1 summary for the debugging trail).
+litesvm = "=0.14.0"
+litesvm-token = "=0.14.0"
+# Exact-pinned: solana-builtins (which brings in solana-program-runtime)
+# has a hard `=4.1.1`-family requirement chain that a plain caret lets a
+# fresh resolve bump to 4.2.1, whose ExecutionRecord shape litesvm 0.14.0
+# doesn't compile against. See PASS 1 summary for the debugging trail.
+agave-feature-set = "=4.1.1"
+agave-reserved-account-keys = "=4.1.1"
+solana-builtins = "=4.1.1"
+solana-program-runtime = "=4.1.1"
+# Pinning wincode itself (rather than chasing each solana-* crate that
+# depends on it) is what actually stops the cascade: several solana-*
+# crates switched from wincode 0.5.x to 0.6.x at different, uncoordinated
+# version boundaries, so pinning solana-hash/message/clock/etc. one at a
+# time each surfaced a NEW conflict one layer deeper. Pinning wincode
+# itself forces the resolver to pick, for every solana-* crate, whichever
+# of ITS OWN versions still targets 0.5.x — in one pass instead of many.
+wincode = "=0.5.5"
+# solana-account 4.6.0 (latest, satisfies litesvm's own ^4.3.0 fine) has
+# itself moved to wincode 0.6.x — pin it down alongside wincode itself.
+solana-account = "=4.3.0"
+# Same story: solana-address 2.7.0 (latest 2.x) is on wincode 0.6.x; 2.6.1
+# is the last 2.x release still on 0.5.x.
+solana-address = "=2.6.1"
+# Same story again: solana-clock is shared by anchor-lang's own
+# (non-dev) dependency graph and litesvm's; unconstrained it unifies to
+# 3.2.0 (wincode 0.6.x) to satisfy anchor-lang's floor. 3.1.1 is the
+# newest still on 0.5.x and still satisfies both.
+solana-clock = "=3.1.1"
+solana-epoch-rewards = "=3.1.0"
+solana-epoch-schedule = "=3.2.0"
+solana-sysvar = "=4.1.0"
+solana-rent = "=4.3.0"
+solana-nonce = "=3.2.0"
+solana-fee-calculator = "=3.2.2"
+solana-hash = "=4.4.0"
+solana-last-restart-slot = "=3.1.0"
+solana-short-vec = "=3.2.2"
+solana-signature = "=3.4.1"
+solana-slot-history = "=3.1.0"
+# Everything below is just what our test code imports directly, left
+# unpinned (plain caret) on purpose — every attempt at pinning these
+# individually to litesvm 0.14.0's stated versions kept cascading into a
+# NEW conflict a layer deeper (solana-hash -> solana-message ->
+# solana-clock -> solana-epoch-schedule -> ...), each one only surfacing
+# after fixing the last. Leaving them unconstrained lets the resolver find
+# its own consistent combination rather than being fought step by step.
+solana-instruction = "3"
+solana-message = "=4.4.0"
+solana-keypair = "3"
+solana-native-token = "3"
+solana-signer = "3"
+solana-system-interface = "3"
+solana-transaction = "4"
+spl-associated-token-account-interface = "2.0.0"
 
 
 [lints.rust]

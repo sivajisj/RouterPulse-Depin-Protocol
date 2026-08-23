@@ -68,4 +68,29 @@ pub enum RouterPulseError {
 
     #[msg("Vault has insufficient balance")]
     InsufficientVaultBalance,
+
+    // epoch / reward v2
+    #[msg("Epoch start time must be before end time")]
+    InvalidEpochWindow,
+
+    #[msg("Reward budget must be greater than zero")]
+    InvalidRewardBudget,
+
+    #[msg("Epoch has already been finalized")]
+    EpochAlreadyFinalized,
+
+    #[msg("Epoch has not been finalized yet")]
+    EpochNotFinalized,
+
+    #[msg("Total network weight must be greater than zero")]
+    TotalNetworkWeightZero,
+
+    #[msg("Reward input list length does not match the accounts provided")]
+    RewardAccountMismatch,
+
+    #[msg("Reward has already been claimed")]
+    RewardAlreadyClaimed,
+
+    #[msg("Treasury has insufficient balance to pay this reward")]
+    InsufficientTreasuryBalance,
 }

@@ -15,7 +15,15 @@ pub struct Protocol{
     pub total_rewards_distributed: u64,
     pub is_paused: bool,
     pub bump: u8,
-    pub vault_bump: u8
+    pub vault_bump: u8,
+
+    // --- V2: SPL reward config (Step 6) ---
+    /// The RPULSE mint (standard SPL Token, 9 decimals). Created externally
+    /// — this program never holds mint authority.
+    pub token_mint: Pubkey,
+    /// Associated Token Account owned by this Protocol PDA. The program
+    /// signs transfers out of it with its own PDA seeds; it never mints.
+    pub treasury: Pubkey,
 }
 
 impl Protocol{

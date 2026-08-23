@@ -1,109 +1,104 @@
 use anchor_lang::prelude::*;
-use crate::state::{Protocol, Router, RouterStatus};
+use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+
 use crate::errors::RouterPulseError;
-use crate::uptime;
+use crate::events::RewardClaimed;
+use crate::state::{Epoch, Protocol, Reward, Router};
 
+// V2 rewrite: the pre-Step-6 prototype paid SOL out of a system-owned
+// `reward_vault` PDA, computed from Router-level elapsed time and
+// `protocol.reward_rate`. That mechanism is gone from this instruction —
+// rewards now come from a per-(router, epoch) Reward PDA that
+// finalize_epoch already computed and created, paid out in RPULSE (SPL
+// Token) from the Protocol-owned treasury ATA. Router.total_rewards /
+// last_claim_time are the old V1 fields; this handler intentionally never
+// writes them (same "kept but superseded" treatment uptime.rs's V1 scoring
+// got — nothing reads them for reward purposes anymore).
 pub fn handler(ctx: Context<ClaimReward>) -> Result<()> {
+    require!(ctx.accounts.epoch.finalized, RouterPulseError::EpochNotFinalized);
 
-    let now    = Clock::get()?.unix_timestamp;
-    let router = &mut ctx.accounts.router;
+    let reward = &mut ctx.accounts.reward;
 
-    require!(
-        router.status == RouterStatus::Active,
-        RouterPulseError::RouterNotActive
+    // SECURITY: check `claimed`, THEN set it to true, THEN transfer — not
+    // transfer-then-mark. Solana has no JS-style mid-instruction
+    // reentrancy (a callee can't call back into this program while this
+    // instruction is still executing), so that classic reentrancy vector
+    // doesn't apply here. Check-then-write is still the correct order,
+    // for three separate reasons:
+    //
+    // 1. Cross-transaction races: Solana can process transactions
+    //    touching the same writable account in any relative order the
+    //    runtime picks, but never truly concurrently — each transaction
+    //    execution sees the account state as of the last transaction
+    //    that actually committed a write to it. If this handler
+    //    transferred tokens first and only wrote `claimed = true`
+    //    afterward, two claim_reward transactions racing for the same
+    //    Reward PDA could BOTH execute their transfer (both reading
+    //    claimed = false, since neither has committed yet) before either
+    //    one's write to `claimed` lands — double-paying the operator.
+    //    Writing `claimed = true` before the transfer CPI means the
+    //    second transaction to actually commit sees `claimed = true`
+    //    already and fails the require! below, regardless of how the
+    //    runtime ordered/scheduled the two attempts.
+    //
+    // 2. Partial-failure safety: if the transfer CPI fails partway
+    //    (insufficient treasury balance, a frozen token account, etc.),
+    //    `claimed` must not already be durably set to true. We check
+    //    the treasury balance BEFORE writing `claimed = true` (see the
+    //    require! below), and a failed instruction rolls back every
+    //    state change in the transaction — including the `claimed`
+    //    write — so a failed transfer can never leave a Reward marked
+    //    claimed with no tokens actually moved. Checking first keeps
+    //    that guarantee explicit rather than relying solely on
+    //    transaction atomicity to paper over the ordering.
+    //
+    // 3. Defensive against future changes: if a later edit adds another
+    //    CPI before the reward payout (a fee transfer, an extra token
+    //    move, a cross-program call), keeping the check-then-write ahead
+    //    of ALL CPIs means that edit can't accidentally open a window
+    //    where `claimed` is still false after tokens have already moved
+    //    — the invariant holds regardless of what gets inserted after it.
+    require!(!reward.claimed, RouterPulseError::RewardAlreadyClaimed);
+    require_keys_eq!(
+        reward.router,
+        ctx.accounts.router.key(),
+        RouterPulseError::Unauthorized
     );
 
     require!(
-        router.heartbeat_count > 0,
-        RouterPulseError::NoHeartbeatYet
+        ctx.accounts.treasury.amount >= reward.reward_amount,
+        RouterPulseError::InsufficientTreasuryBalance
     );
 
-    let claim_start = if router.last_claim_time == 0 {
-        router.registered_at
-    } else {
-        router.last_claim_time
-    };
+    reward.claimed = true;
+    let reward_amount = reward.reward_amount;
+    let router_key = reward.router;
+    let epoch_id = reward.epoch;
 
-    let elapsed = now
-        .checked_sub(claim_start)
-        .ok_or(RouterPulseError::InvalidTimestamp)?;
+    let protocol_bump = ctx.accounts.protocol.bump;
+    let protocol_seeds: &[&[u8]] = &[Protocol::SEED, &[protocol_bump]];
 
-    require!(elapsed > 0, RouterPulseError::NothingToClaim);
-
-    let uptime_pct = uptime::uptime_percentage(
-        router.heartbeat_count,
-        router.missed_heartbeats,
-    );
-
-    let base_reward = (elapsed as u64)
-        .checked_mul(ctx.accounts.protocol.reward_rate)
-        .ok_or(RouterPulseError::Overflow)?;
-
-    let reward_amount = base_reward
-        .checked_mul(uptime_pct)
-        .ok_or(RouterPulseError::Overflow)?
-        .checked_div(100)
-        .ok_or(RouterPulseError::Overflow)?;
-
-    require!(reward_amount > 0, RouterPulseError::NothingToClaim);
-
-    let vault_balance = ctx.accounts.reward_vault.lamports();
-    require!(
-        vault_balance >= reward_amount,
-        RouterPulseError::InsufficientVaultBalance
-    );
-
-    // Transfer SOL from vault PDA to owner via invoke_signed.
-    // The vault is a system-owned PDA (no allocated data), so direct
-    // lamport manipulation is not allowed — we must go through the
-    // system program with the vault's PDA seeds as the signer.
-    let protocol_key = ctx.accounts.protocol.key();
-    let vault_seeds: &[&[u8]] = &[
-        b"reward_vault",
-        protocol_key.as_ref(),
-        &[ctx.accounts.protocol.vault_bump],
-    ];
-    anchor_lang::solana_program::program::invoke_signed(
-        &anchor_lang::solana_program::system_instruction::transfer(
-            &ctx.accounts.reward_vault.key(),
-            &ctx.accounts.owner.key(),
-            reward_amount,
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.key(),
+            Transfer {
+                from: ctx.accounts.treasury.to_account_info(),
+                to: ctx.accounts.operator_ata.to_account_info(),
+                authority: ctx.accounts.protocol.to_account_info(),
+            },
+            &[protocol_seeds],
         ),
-        &[
-            ctx.accounts.reward_vault.to_account_info(),
-            ctx.accounts.owner.to_account_info(),
-        ],
-        &[vault_seeds],
+        reward_amount,
     )?;
 
-    // update router
-    router.total_rewards = router.total_rewards
-        .checked_add(reward_amount)
-        .ok_or(RouterPulseError::Overflow)?;
-    router.last_claim_time = now;
-
-    // update protocol stats
-    ctx.accounts.protocol.total_rewards_distributed =
-        ctx.accounts.protocol.total_rewards_distributed
-            .checked_add(reward_amount)
-            .ok_or(RouterPulseError::Overflow)?;
-
     emit!(RewardClaimed {
-        router_id:  router.router_id.clone(),
-        owner:      router.owner,
-        amount:     reward_amount,
-        uptime_pct,
-        elapsed:    elapsed as u64,
-        timestamp:  now,
+        router: router_key,
+        epoch_id,
+        amount: reward_amount,
+        timestamp: Clock::get()?.unix_timestamp,
     });
 
-    msg!(
-        "Reward: {} lamports for {}. Uptime: {}%",
-        reward_amount,
-        router.router_id,
-        uptime_pct
-    );
-
+    msg!("Reward claimed: {} RPULSE for router {}", reward_amount, router_key);
     Ok(())
 }
 
@@ -111,39 +106,45 @@ pub fn handler(ctx: Context<ClaimReward>) -> Result<()> {
 pub struct ClaimReward<'info> {
     #[account(
         mut,
-        seeds   = [Router::SEED, owner.key().as_ref(), router.router_id.as_bytes()],
-        bump    = router.bump,
+        seeds = [Reward::SEED, reward.router.as_ref(), &reward.epoch.to_le_bytes()],
+        bump = reward.bump,
+    )]
+    pub reward: Account<'info, Reward>,
+
+    #[account(
+        seeds = [Epoch::SEED, &reward.epoch.to_le_bytes()],
+        bump = epoch.bump,
+    )]
+    pub epoch: Account<'info, Epoch>,
+
+    #[account(
+        address = reward.router,
         has_one = owner,
     )]
     pub router: Account<'info, Router>,
 
     #[account(
-        mut,
         seeds = [Protocol::SEED],
-        bump  = protocol.bump,
+        bump = protocol.bump,
     )]
     pub protocol: Account<'info, Protocol>,
 
-    /// CHECK: PDA vault holding SOL for rewards
+    #[account(mut, address = protocol.treasury)]
+    pub treasury: Account<'info, TokenAccount>,
+
+    /// The operator's own RPULSE ATA. Pass 1 requires it to already exist
+    /// (created via `spl-token create-account` or an ATA-creating wallet);
+    /// auto-creating it here with `init_if_needed` is deferred to pass 2
+    /// to avoid that pattern's re-init edge cases in a first pass.
     #[account(
         mut,
-        seeds = [b"reward_vault", protocol.key().as_ref()],
-        bump  = protocol.vault_bump,
+        associated_token::mint = protocol.token_mint,
+        associated_token::authority = owner,
     )]
-    pub reward_vault: UncheckedAccount<'info>,
+    pub operator_ata: Account<'info, TokenAccount>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    pub system_program: Program<'info, System>,
-}
-
-#[event]
-pub struct RewardClaimed {
-    pub router_id:  String,
-    pub owner:      Pubkey,
-    pub amount:     u64,
-    pub uptime_pct: u64,
-    pub elapsed:    u64,
-    pub timestamp:  i64,
+    pub token_program: Program<'info, Token>,
 }
