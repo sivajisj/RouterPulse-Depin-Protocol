@@ -21,6 +21,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/devices/{id}/enrollment", post(handlers::devices::start_enrollment))
         .route("/v1/devices/{id}/enrollment/complete", post(handlers::devices::complete_enrollment))
         .route("/v1/telemetry/heartbeat", post(handlers::telemetry::submit_heartbeat))
+        .route("/v1/network/overview", get(handlers::network::overview))
         .layer(axum_mw::from_fn(require_auth));
 
     Router::new()

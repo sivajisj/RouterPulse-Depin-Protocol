@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "programs/*"
-, "services/api", "agent/routerpulse-agent"]
+, "services/api", "agent/routerpulse-agent", "services/scorer"]
 resolver = "2"
 
 [profile.release]
