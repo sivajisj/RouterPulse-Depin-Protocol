@@ -1,0 +1,17 @@
+{
+  "name": "routerpulse-simulator",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sim": "npx tsx src/index.ts",
+    "sim:small": "npx tsx src/index.ts --routers 10 --rounds 5",
+    "sim:medium": "npx tsx src/index.ts --routers 100 --rounds 10",
+    "sim:large": "npx tsx src/index.ts --routers 1000 --rounds 5",
+    "sim:attacks": "npx tsx src/index.ts --routers 20 --rounds 5 --attacks"
+  },
+  "dependencies": {
+    "tsx": "4.16.2",
+    "typescript": "5.5.4"
+  }
+}
