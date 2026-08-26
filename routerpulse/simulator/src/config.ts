@@ -3,6 +3,8 @@ import * as anchor from "@coral-xyz/anchor";
 import * as fs from "fs";
 import * as path from "path";
 import type { Routerpulse } from "../../target/types/routerpulse";
+// Imported directly (not via anchor.BN) — see tests/routerpulse.ts for why.
+import BN from "bn.js";
 
 // load wallet from solana default keypair
 export function loadWallet(): anchor.web3.Keypair {
@@ -38,17 +40,17 @@ export function loadProgram(
 // Mirrors Protocol::epoch_number_at on-chain. Client and program must
 // always agree on which epoch is "current", since heartbeat() rejects
 // any epoch_number that doesn't match the on-chain clock.
-export function currentEpochNumber(protocol: any, nowSec: number): anchor.BN {
+export function currentEpochNumber(protocol: any, nowSec: number): BN {
     const genesis  = protocol.genesisTime.toNumber();
     const duration = protocol.epochDuration.toNumber();
-    if (nowSec <= genesis || duration <= 0) return new anchor.BN(0);
-    return new anchor.BN(Math.floor((nowSec - genesis) / duration));
+    if (nowSec <= genesis || duration <= 0) return new BN(0);
+    return new BN(Math.floor((nowSec - genesis) / duration));
 }
 
 export function getRouterEpochPDA(
     programId: PublicKey,
     routerPDA: PublicKey,
-    epochNumber: anchor.BN
+    epochNumber: BN
 ): PublicKey {
     const [pda] = PublicKey.findProgramAddressSync(
         [
@@ -62,7 +64,7 @@ export function getRouterEpochPDA(
 }
 
 export const PROGRAM_ID = new PublicKey(
-    "BD41MBys55QSTYgsL3S5RmkSu19PVqtfTje3XhZgnbtD"
+    "4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4"
 );
 
 export const RPC_URL   = "http://127.0.0.1:8899";

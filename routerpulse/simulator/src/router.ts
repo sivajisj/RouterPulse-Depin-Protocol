@@ -1,6 +1,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { currentEpochNumber, getRouterEpochPDA } from "./config";
+// Imported directly (not via anchor.BN) — see tests/routerpulse.ts for why.
+import BN from "bn.js";
 
 export interface RouterConfig {
     routerId: string;
@@ -28,7 +30,7 @@ export class RouterSimulator {
     private running:     boolean = false;
     private heartbeatCount: number = 0;
     private missedCount:    number = 0;
-    private lastFinalizedEpoch: anchor.BN | null = null;
+    private lastFinalizedEpoch: BN | null = null;
 
     constructor(
         program:     any,
@@ -79,8 +81,8 @@ export class RouterSimulator {
         await this.program.methods
             .registerRouter(
                 this.config.routerId,
-                new anchor.BN(this.config.lat),
-                new anchor.BN(this.config.long),
+                new BN(this.config.lat),
+                new BN(this.config.long),
                 this.device.publicKey
             )
             .accountsPartial({
@@ -153,7 +155,7 @@ export class RouterSimulator {
     /// operator step. Safe to call repeatedly — every failure mode here
     /// (not ended, already finalized/claimed, no record) is expected
     /// and just skipped.
-    private async maybeSettlePreviousEpoch(currentEpoch: anchor.BN): Promise<void> {
+    private async maybeSettlePreviousEpoch(currentEpoch: BN): Promise<void> {
         const previousEpoch = currentEpoch.subn(1);
         if (previousEpoch.isNeg()) return;
         if (this.lastFinalizedEpoch && this.lastFinalizedEpoch.eq(previousEpoch)) return;

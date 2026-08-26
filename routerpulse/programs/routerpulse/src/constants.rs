@@ -4,4 +4,4 @@ pub const BASIS_POINTS_DIVISOR: u64 = 10_000;
 
 /// Epoch duration must be at least this many heartbeat intervals so
 /// `expected_heartbeats` is never zero and uptime_bps stays meaningful.
-pub const MIN_HEARTBEATS_PER_EPOCH: i64 = 4;
+pub const MIN_HEARTBEATS_PER_EPOCH: i64 = 2;

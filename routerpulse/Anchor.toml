@@ -5,14 +5,11 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-routerpulse = "BD41MBys55QSTYgsL3S5RmkSu19PVqtfTje3XhZgnbtD"
-
 [programs.devnet]
 routerpulse = "BD41MBys55QSTYgsL3S5RmkSu19PVqtfTje3XhZgnbtD"
 
-[registry]
-url = "https://api.apr.dev"
+[programs.localnet]
+routerpulse = "4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4"
 
 [provider]
 cluster = "localnet"

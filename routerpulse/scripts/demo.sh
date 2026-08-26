@@ -6,7 +6,7 @@ echo "║     RouterPulse — DePIN Protocol Demo    ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 echo "🌐 Network: Localnet"
-echo "📋 Program: BD41MBys55QSTYgsL3S5RmkSu19PVqtfTje3XhZgnbtD"
+echo "📋 Program: 4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4"
 echo ""
 
 echo "━━━ Step 1: Run Full Test Suite ━━━━━━━━━━━━━━━"

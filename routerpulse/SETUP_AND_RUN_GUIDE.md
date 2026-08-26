@@ -30,10 +30,14 @@ sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
 export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
 solana --version  # 1.18+
 
-# 3. Anchor
+# 3. Anchor — building the CLI from source needs these system libs on Linux
+sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev libudev-dev
 cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
 avm install latest && avm use latest
-anchor --version  # 0.30+
+# this project's programs/routerpulse/Cargo.toml pins anchor-lang 1.0.1 —
+# anchor build/test will tell you to run `avm install 1.0.1` (then
+# `avm use 1.0.1`) if the CLI version doesn't match
+anchor --version
 
 # 4. Node.js
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
@@ -96,15 +100,14 @@ yarn install
 # install simulator dependencies
 cd simulator && npm install && cd ..
 
-# generate program keypair (first time only)
-anchor keys gen
-
-# paste the output Program ID into:
-# 1. programs/routerpulse/src/lib.rs  → declare_id!("YOUR_ID")
-# 2. Anchor.toml                       → routerpulse = "YOUR_ID"
-
-# build the program
+# build the program (auto-generates target/deploy/routerpulse-keypair.json
+# on first run, since deploy keypairs are gitignored on purpose)
 anchor build
+
+# the freshly generated keypair won't match the declare_id!() committed in
+# source — anchor build will tell you so. Fix it in one command:
+anchor keys sync
+anchor build   # rebuild so target/idl and the .so pick up the synced id
 ```
 
 ---
@@ -247,7 +250,7 @@ anchor build
 anchor test --skip-local-validator
 
 # check program logs
-solana logs BD41MBys55QSTYgsL3S5RmkSu19PVqtfTje3XhZgnbtD
+solana logs 4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4
 
 # check account state
 solana account <PDA_ADDRESS>

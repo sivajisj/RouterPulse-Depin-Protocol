@@ -9,7 +9,7 @@ pub mod uptime;
 
 use instructions::*;
 
-declare_id!("BD41MBys55QSTYgsL3S5RmkSu19PVqtfTje3XhZgnbtD");
+declare_id!("4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4");
 
 #[program]
 pub mod routerpulse {
