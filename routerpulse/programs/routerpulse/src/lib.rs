@@ -1,3 +1,10 @@
+// Fires on the `#[program]` attribute below, entirely from Anchor's own
+// macro expansion — there is no diverging expression in the handwritten
+// code here, and nothing to restructure to satisfy it. Allowed narrowly
+// (this one lint, this one crate) so CI can keep running clippy with
+// `-D warnings` and still fail on genuine findings.
+#![allow(clippy::diverging_sub_expression)]
+
 use anchor_lang::prelude::*;
 
 pub mod constants;

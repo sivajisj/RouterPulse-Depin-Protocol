@@ -1,0 +1,105 @@
+# Local development stack for the off-chain services.
+#
+# The Solana validator is deliberately NOT in here. `solana-test-validator`
+# in a container is awkward (large image, slow startup, and the program
+# still has to be built and deployed into it from the host toolchain), and
+# more importantly this compose file should also work unchanged when
+# pointed at devnet — just change SOLANA_RPC_URL. Run the validator on the
+# host:
+#
+#   solana-test-validator --reset
+#   cd routerpulse && anchor build && anchor keys sync && anchor deploy
+#   docker compose up
+#
+# host.docker.internal resolves to the host from inside the containers,
+# which is how the indexer reaches a validator running outside Docker.
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1})"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  indexer:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/indexer.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      RPC_URL: ${SOLANA_RPC_URL:-http://host.docker.internal:8899}
+      WS_URL: ${SOLANA_WS_URL:-ws://host.docker.internal:8900}
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: routerpulse
+      REDIS_URL: redis://redis:6379
+      IDL_PATH: /app/idl/routerpulse.json
+    volumes:
+      # The IDL is a build artifact of `anchor build` on the host, not
+      # something this image can produce — mounted read-only so a rebuild
+      # of the program is picked up by restarting the container.
+      - ./routerpulse/target/idl:/app/idl:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: routerpulse
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      CORS_ORIGINS: http://localhost:3000
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+      args:
+        # Baked in at build time: NEXT_PUBLIC_* is inlined into the
+        # client bundle during `next build`, so it can't be set at runtime.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  mongo-data:

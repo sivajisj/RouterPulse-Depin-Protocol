@@ -115,9 +115,21 @@ New `web/` app — Next.js 14 App Router over the Phase 4 API. Details in [web/R
 
 - Treasury page with swap quotes via a DEX aggregator (not a custom AMM).
 
-## Phase 8 — Production Engineering (planned)
+## Phase 8 — Docker + CI/CD ✅ (partial, this session)
 
-- Docker Compose for local dev (Mongo/Redis/ClickHouse/API/indexer/worker/web), GitHub Actions CI (lint/build/test per workspace), staging → production promotion, RPC failover, observability (OpenTelemetry/Prometheus/Grafana).
+Local stack reproducibility and continuous integration. Details in [infrastructure/README.md](../infrastructure/README.md).
+
+- **`docker compose up` brings up the whole off-chain stack** — MongoDB, Redis, indexer, API, dashboard — with health-gated startup ordering so the indexer and API don't race their dependencies.
+- **The validator is deliberately *not* containerized.** It's a poor fit (large image, slow start, and the program still needs the host's Anchor/BPF toolchain to build and deploy into it), and leaving it out means the same compose file works unchanged against devnet by changing one env var. The indexer reaches a host-run validator via `host.docker.internal`.
+- **Two Docker-specific gotchas documented rather than left as traps**: the IDL is a host build artifact bind-mounted read-only (the image can't produce it, so a program rebuild needs an indexer restart), and `NEXT_PUBLIC_API_URL` is a *build arg* not a runtime var, because Next.js inlines it into the client bundle at build time.
+- **CI runs four jobs on every push and PR**: the Anchor program (`cargo check`, `clippy -D warnings`, 26 unit tests — no Solana toolchain needed, so it's fast), a TypeScript type-check matrix across `indexer`/`api`/`web` (catches cross-service drift, e.g. the API reading a field the indexer stopped writing), the API's 21-test end-to-end suite against **real** MongoDB and Redis service containers, and a Docker build of all three images.
+- **Getting `clippy -D warnings` to actually pass surfaced real issues**, rather than being waved through: fixed `== false` comparisons and manual range checks in `register_router`, then hit two lints that *couldn't* be fixed conventionally — Anchor's `#[program]` macro expansion triggers `diverging_sub_expression`, and its generated `__client_accounts_*` modules are only reachable through glob re-exports that unavoidably make `instructions::handler` ambiguous. Attempting to replace the globs with an explicit export list broke the build outright. Both are now narrowly-scoped `#![allow(...)]`s with comments explaining exactly why, so CI still fails on genuine findings.
+- **A CI bug caught before it ever ran**: the seed script initially lived in `.github/scripts/` and failed with `Cannot find module 'mongodb'` — Node resolves modules from the script's own directory, not the working directory. Moved into `api/test/` where the driver actually is.
+- **Verified, not assumed**: all three Docker images build successfully, `docker compose config` validates, the seed script runs, and the API's full 21-test suite passes against freshly-seeded CI-shaped data — the exact sequence the `api-e2e` job runs. Clippy passes clean at `-D warnings` and the program still builds to BPF with no stack-frame regressions.
+
+### Not done in this phase
+
+Observability (OpenTelemetry/Prometheus/Grafana), a production deployment target (registry, secrets management, non-root users, pinned digests, resource limits), and load testing remain open. The compose stack is explicitly for local development.
 
 ## Phase 9 — Security Pass (planned)
 

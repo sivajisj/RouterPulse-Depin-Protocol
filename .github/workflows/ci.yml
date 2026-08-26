@@ -1,0 +1,164 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The on-chain program's pure logic — uptime scoring and the whole
+  # tokenomics math module (performance tiers, emission decay, vesting).
+  # Runs on plain cargo, no Solana toolchain needed, so it's fast and
+  # gates every push.
+  program:
+    name: Anchor program (fmt + clippy + unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: routerpulse
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: routerpulse
+
+      - name: Build
+        run: cargo check -p routerpulse --lib
+
+      - name: Clippy
+        run: cargo clippy -p routerpulse --lib -- -D warnings
+
+      - name: Unit tests (uptime + tokenomics math)
+        run: cargo test -p routerpulse --lib
+
+  # Type-checks every TypeScript workspace. These catch real breakage —
+  # e.g. an API service referencing a field the indexer no longer writes.
+  typescript:
+    name: TypeScript (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [indexer, api, web]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.workspace }}/package-lock.json
+
+      - name: Install
+        working-directory: ${{ matrix.workspace }}
+        run: npm ci
+
+      - name: Type-check
+        working-directory: ${{ matrix.workspace }}
+        # `web` type-checks as part of `next build`; the others have no
+        # build step worth running in CI, so tsc --noEmit is the check.
+        run: |
+          if [ "${{ matrix.workspace }}" = "web" ]; then
+            npm run build
+          else
+            npx tsc --noEmit -p tsconfig.json
+          fi
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+
+  # Boots the API against real MongoDB and Redis service containers and
+  # runs the end-to-end suite — SIWS auth, replay rejection, RBAC,
+  # pagination, feed ordering. No mocks.
+  api-e2e:
+    name: API end-to-end (real Mongo + Redis)
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1})'"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 3s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install
+        working-directory: api
+        run: npm ci
+
+      - name: Seed a minimal indexed dataset
+        # The API's tests assert against indexed data. CI has no Solana
+        # validator, so this seeds the same document shapes the indexer
+        # would write — enough to exercise pagination, filters, and RBAC.
+        # Lives inside api/ because Node resolves modules from the
+        # script's own directory, and that's where the mongodb driver is.
+        working-directory: api
+        run: node test/seed-mongo.js
+        env:
+          MONGO_URL: mongodb://127.0.0.1:27017
+          MONGO_DB: routerpulse
+
+      - name: Run end-to-end tests
+        working-directory: api
+        run: npm test
+        env:
+          MONGO_URL: mongodb://127.0.0.1:27017
+          MONGO_DB: routerpulse
+          REDIS_URL: redis://127.0.0.1:6379
+          JWT_SECRET: ci-test-secret
+          RATE_LIMIT_MAX: "10000"
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build indexer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/indexer.Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/api.Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/web.Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -14,7 +14,7 @@ pub fn handler(
 
     //  Validation
     require!(
-        router_id.is_empty() == false,
+        !router_id.is_empty(),
         RouterPulseError::RouterIdEmpty
     );
 
@@ -23,20 +23,21 @@ pub fn handler(
         RouterPulseError::RouterIdTooLong
     );
 
+    // Fixed-point degrees (actual coordinate x 1e6) — see state/router.rs.
     require!(
-        location_lat >= -90000000 && location_lat <= 90000000,
+        (-90_000_000..=90_000_000).contains(&location_lat),
         RouterPulseError::InvalidLatitude
     );
 
     require!(
-        location_long >= -180000000 && location_long <= 180000000,
+        (-180_000_000..=180_000_000).contains(&location_long),
         RouterPulseError::InvalidLongitude
     );
 
     // checking whether the protocol is paused or not
     let protocol = &mut ctx.accounts.protocol;
     require!(
-        protocol.is_paused == false,
+        !protocol.is_paused,
         RouterPulseError::ProtocolPaused
     );
     let now = Clock::get()?.unix_timestamp;

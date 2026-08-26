@@ -1,3 +1,18 @@
+// Anchor's `#[program]` macro expands to code that reaches for
+// `crate::instructions::__client_accounts_*` modules, which the
+// `#[derive(Accounts)]` macro generates inside each instruction module.
+// Those are only reachable through a glob re-export, so the globs below
+// are mandatory — replacing them with an explicit export list breaks the
+// build with an unresolved-import error pointing at `#[program]`.
+//
+// The cost is that every instruction module also exports its own
+// `pub fn handler`, making the bare name `instructions::handler`
+// ambiguous. That's harmless here because nothing ever refers to it —
+// `lib.rs` always calls the fully-qualified
+// `instructions::<module>::handler(..)`. Scoped to this module so the
+// rest of the crate still fails CI on real ambiguity.
+#![allow(ambiguous_glob_reexports)]
+
 pub mod initialize_protocol;
 pub mod register_router;
 pub mod heartbeat;

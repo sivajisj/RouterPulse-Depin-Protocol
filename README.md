@@ -4,7 +4,44 @@ A trustless Wi-Fi router uptime tracking and reward distribution protocol built 
 
 Inspired by the real infrastructure problem that Wi-Fi networks like Wifi Dabba are solving , operators currently self-report uptime with no way to verify it. RouterPulse replaces that with cryptographic proof stored on-chain.
 
-This repository has two parts today: the Anchor program + simulator + tests (`routerpulse/`, documented below), and an event-driven indexer (`indexer/`) that turns on-chain activity into queryable MongoDB collections — see [indexer/README.md](indexer/README.md). See [docs/PHASES.md](docs/PHASES.md) for the full roadmap and what's planned next (backend API, analytics, dashboard).
+## The stack
+
+```
+Solana program (Rust/Anchor)      routerpulse/   epochs, staking, slashing, vesting, emissions
+        │
+        ├── simulator             routerpulse/simulator/   fake routers, full lifecycle
+        │
+        ▼
+   indexer (Node/TS)              indexer/       decodes events → MongoDB, reconciles vs chain
+        │
+        ├──────────────▶ Redis pub/sub
+        ▼                    │
+   API (NestJS)              │     api/          REST + WebSocket, SIWS auth, on-chain RBAC
+        │◀───────────────────┘
+        ▼
+   Dashboard (Next.js 14)         web/           Server Components, live feed, router map
+```
+
+| Directory | What it is |
+|---|---|
+| [`routerpulse/`](routerpulse/) | The Anchor program, simulator, and integration tests (documented below) |
+| [`indexer/`](indexer/README.md) | Event-driven indexer: Solana → MongoDB, with backfill and reconciliation |
+| [`api/`](api/README.md) | NestJS REST + WebSocket API, Sign-In-With-Solana auth, RBAC bound to on-chain authority |
+| [`web/`](web/README.md) | Next.js 14 dashboard — network overview, router explorer, analytics, live event feed |
+| [`infrastructure/`](infrastructure/README.md) | Docker Compose stack and CI notes |
+| [`docs/PHASES.md`](docs/PHASES.md) | The full roadmap: what's built, what's not, and the real bugs found along the way |
+
+**Run the whole off-chain stack:**
+
+```bash
+solana-test-validator --reset                      # terminal 1
+cd routerpulse && anchor build && anchor keys sync && anchor build && anchor deploy
+docker compose up --build                          # terminal 2 — Mongo, Redis, indexer, API, web
+```
+
+Dashboard at `localhost:3000`, API docs at `localhost:3001/api/docs`. See
+[infrastructure/README.md](infrastructure/README.md) for why the validator
+runs on the host rather than in compose.
 
 ---
 
