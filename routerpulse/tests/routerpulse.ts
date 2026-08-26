@@ -1,6 +1,12 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program }  from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import {
+    TOKEN_PROGRAM_ID,
+    getOrCreateAssociatedTokenAccount,
+    getAccount,
+    getMint,
+} from "@solana/spl-token";
 import { assert }   from "chai";
 // Imported directly (not via anchor.BN) — under this toolchain's mocha/Node
 // ESM interop, @coral-xyz/anchor's re-exported `BN` fails to resolve as a
@@ -12,251 +18,249 @@ describe("RouterPulse", () => {
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
     const program = anchor.workspace.Routerpulse as Program<any>;
+    const wallet = (provider.wallet as anchor.Wallet).payer;
 
-    // Kept short so the epoch-based reward tests (which must wait for
-    // real wall-clock time to cross an epoch boundary) finish in a
-    // reasonable amount of time. heartbeat_interval=60s is the on-chain
-    // floor; epoch_duration=120s is 2x that, the on-chain floor too.
+    // Kept short so the epoch tests (which must wait for real wall-clock
+    // time to cross an epoch boundary) finish in a reasonable time.
+    // heartbeat_interval=60s is the on-chain floor; epoch_duration=120s
+    // is 2x that, also the on-chain floor.
     const HEARTBEAT_INTERVAL = 60;
     const EPOCH_DURATION     = 120;
+    const STAKE_AMOUNT       = new BN(10_000_000_000);   // 10 tokens @ 9dp
+    const MIN_STAKE          = new BN(1_000_000_000);    // 1 token
+    const REWARD_VESTING     = 60;                        // seconds
+    const GENESIS_ALLOCATION = new BN("100000000000000"); // 100k tokens
 
-    const [protocolPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("protocol")],
-        program.programId
-    );
+    const seedPda = (seeds: (Buffer | Uint8Array)[]) =>
+        PublicKey.findProgramAddressSync(seeds, program.programId)[0];
 
-    const [rewardVaultPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("reward_vault"), protocolPDA.toBuffer()],
-        program.programId
-    );
+    const protocolPDA   = seedPda([Buffer.from("protocol")]);
+    const rewardMintPDA = seedPda([Buffer.from("reward_mint")]);
+    const stakeVaultPDA = seedPda([Buffer.from("stake_vault")]);
+    const treasuryPDA   = seedPda([Buffer.from("treasury")]);
 
-    function getRouterPDA(owner: PublicKey, routerId: string): PublicKey {
-        const [pda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("router"), owner.toBuffer(), Buffer.from(routerId)],
-            program.programId
-        );
-        return pda;
-    }
+    const epochSeed = (n: number | BN) => new BN(n).toArrayLike(Buffer, "le", 8);
 
-    function getRouterEpochPDA(routerPDA: PublicKey, epochNumber: number | BN): PublicKey {
-        const [pda] = PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("router_epoch"),
-                routerPDA.toBuffer(),
-                new BN(epochNumber).toArrayLike(Buffer, "le", 8),
-            ],
-            program.programId
-        );
-        return pda;
-    }
+    const getRouterPDA = (owner: PublicKey, routerId: string) =>
+        seedPda([Buffer.from("router"), owner.toBuffer(), Buffer.from(routerId)]);
+    const getRouterEpochPDA = (router: PublicKey, n: number | BN) =>
+        seedPda([Buffer.from("router_epoch"), router.toBuffer(), epochSeed(n)]);
+    const getStakePDA = (router: PublicKey) =>
+        seedPda([Buffer.from("stake"), router.toBuffer()]);
+    const getVestingPDA = (router: PublicKey, n: number | BN) =>
+        seedPda([Buffer.from("vesting"), router.toBuffer(), epochSeed(n)]);
+    const getEmissionPDA = (n: number | BN) =>
+        seedPda([Buffer.from("emission"), epochSeed(n)]);
 
     // Mirrors Protocol::epoch_number_at on-chain — deterministic from
     // genesis_time + epoch_duration, so client and program always agree.
-    function currentEpochNumber(protocol: any, nowSec: number): BN {
+    function currentEpochNumber(protocol: any, atSec: number): BN {
         const genesis = protocol.genesisTime.toNumber();
         const duration = protocol.epochDuration.toNumber();
-        if (nowSec <= genesis || duration <= 0) return new BN(0);
-        return new BN(Math.floor((nowSec - genesis) / duration));
+        if (atSec <= genesis || duration <= 0) return new BN(0);
+        return new BN(Math.floor((atSec - genesis) / duration));
+    }
+    function epochEndTime(protocol: any, epochNumber: BN): number {
+        return protocol.genesisTime.toNumber()
+            + (epochNumber.toNumber() + 1) * protocol.epochDuration.toNumber();
     }
 
-    function nowSec(): number {
-        return Math.floor(Date.now() / 1000);
-    }
-
-    function sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
+    const nowSec = () => Math.floor(Date.now() / 1000);
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+    const fetchProtocol = () => program.account.protocol.fetch(protocolPDA);
 
     async function airdrop(pubkey: PublicKey, sol = 1): Promise<void> {
         const sig = await provider.connection.requestAirdrop(pubkey, sol * anchor.web3.LAMPORTS_PER_SOL);
         await provider.connection.confirmTransaction(sig);
     }
+    async function tokenBalance(ata: PublicKey): Promise<bigint> {
+        return (await getAccount(provider.connection, ata)).amount;
+    }
 
-    // ── Protocol ──────────────────────────────────────────────────────────────
+    let ownerAta: PublicKey;
+
+    // ── Protocol + token bootstrap ────────────────────────────────────────────
 
     describe("Protocol Initialization", () => {
 
-        it("initializes protocol correctly", async () => {
-            const exists = await provider.connection.getAccountInfo(protocolPDA);
-            if (!exists) {
+        it("creates the protocol, reward mint, stake vault and treasury", async () => {
+            if (!await provider.connection.getAccountInfo(protocolPDA)) {
                 await program.methods
-                    .initializeProtocol(
-                        new BN(1_000),
-                        500,
-                        new BN(HEARTBEAT_INTERVAL),
-                        new BN(EPOCH_DURATION),
-                    )
-                    .accounts({
-                        protocol:      protocolPDA,
-                        authority:     provider.wallet.publicKey,
+                    .initializeProtocol({
+                        rewardRate:              new BN(1_000_000),
+                        penaltyBps:              500,
+                        heartbeatInterval:       new BN(HEARTBEAT_INTERVAL),
+                        epochDuration:           new BN(EPOCH_DURATION),
+                        minStake:                MIN_STAKE,
+                        stakeLockDuration:       new BN(0),
+                        rewardCliffDuration:     new BN(0),
+                        rewardVestingDuration:   new BN(REWARD_VESTING),
+                        initialEmissionPerEpoch: new BN("1000000000000"),
+                        epochsPerYear:           new BN(1000),
+                        emissionDecayBps:        8000,
+                        genesisAllocation:       GENESIS_ALLOCATION,
+                    })
+                    .accountsPartial({
+                        protocol: protocolPDA, rewardMint: rewardMintPDA,
+                        stakeVault: stakeVaultPDA, treasury: treasuryPDA,
+                        authority: provider.wallet.publicKey,
+                        tokenProgram: TOKEN_PROGRAM_ID,
                         systemProgram: anchor.web3.SystemProgram.programId,
                     })
                     .rpc();
             }
-            const protocol = await program.account.protocol.fetch(protocolPDA);
+            const protocol = await fetchProtocol();
+            assert.equal(protocol.rewardMint.toBase58(), rewardMintPDA.toBase58());
             assert.equal(protocol.isPaused, false);
-            assert.ok(protocol.authority);
-            assert.ok(protocol.vaultBump >= 0);
-            assert.isAbove(protocol.epochDuration.toNumber(), 0);
-            assert.isAbove(protocol.genesisTime.toNumber(), 0);
-            console.log("✅ Protocol ready");
-            console.log("   authority:     ", protocol.authority.toBase58());
-            console.log("   rewardRate:    ", protocol.rewardRate.toString());
-            console.log("   epochDuration: ", protocol.epochDuration.toString());
+
+            // The critical invariant: the protocol PDA is the sole mint
+            // authority, so no human key can ever issue reward tokens.
+            const mint = await getMint(provider.connection, rewardMintPDA);
+            assert.equal(mint.mintAuthority?.toBase58(), protocolPDA.toBase58());
+            assert.isNull(mint.freezeAuthority, "protocol must not be able to freeze holders");
+            assert.equal(mint.decimals, 9);
+
+            console.log("✅ Protocol + token ready");
+            console.log("   mint:          ", rewardMintPDA.toBase58());
+            console.log("   mint authority:", mint.mintAuthority?.toBase58(), "(protocol PDA)");
         });
 
-        it("rejects zero reward rate", async () => {
-            const fakePDA = PublicKey.findProgramAddressSync(
-                [Buffer.from("protocol_test")], program.programId
-            )[0];
+        it("rejects a vesting duration shorter than its cliff", async () => {
             try {
                 await program.methods
-                    .initializeProtocol(new BN(0), 500, new BN(HEARTBEAT_INTERVAL), new BN(EPOCH_DURATION))
-                    .accounts({
-                        protocol:      fakePDA,
-                        authority:     provider.wallet.publicKey,
-                        systemProgram: anchor.web3.SystemProgram.programId,
+                    .initializeProtocol({
+                        rewardRate: new BN(1000), penaltyBps: 500,
+                        heartbeatInterval: new BN(HEARTBEAT_INTERVAL), epochDuration: new BN(EPOCH_DURATION),
+                        minStake: MIN_STAKE, stakeLockDuration: new BN(0),
+                        rewardCliffDuration: new BN(100), rewardVestingDuration: new BN(10),
+                        initialEmissionPerEpoch: new BN(1000), epochsPerYear: new BN(1000),
+                        emissionDecayBps: 8000, genesisAllocation: GENESIS_ALLOCATION,
+                    })
+                    .accountsPartial({
+                        protocol: protocolPDA, rewardMint: rewardMintPDA, stakeVault: stakeVaultPDA,
+                        treasury: treasuryPDA, authority: provider.wallet.publicKey,
+                        tokenProgram: TOKEN_PROGRAM_ID, systemProgram: anchor.web3.SystemProgram.programId,
                     })
                     .rpc();
                 assert.fail("should reject");
             } catch (err: any) {
                 assert.ok(err);
-                console.log("✅ Zero reward rate rejected");
-            }
-        });
-
-        it("rejects invalid penalty bps", async () => {
-            const fakePDA = PublicKey.findProgramAddressSync(
-                [Buffer.from("protocol_test2")], program.programId
-            )[0];
-            try {
-                await program.methods
-                    .initializeProtocol(new BN(1000), 20000, new BN(HEARTBEAT_INTERVAL), new BN(EPOCH_DURATION))
-                    .accounts({
-                        protocol:      fakePDA,
-                        authority:     provider.wallet.publicKey,
-                        systemProgram: anchor.web3.SystemProgram.programId,
-                    })
-                    .rpc();
-                assert.fail("should reject");
-            } catch (err: any) {
-                assert.ok(err);
-                console.log("✅ Invalid penalty bps rejected");
-            }
-        });
-
-        it("rejects epoch duration shorter than the minimum heartbeat multiple", async () => {
-            const fakePDA = PublicKey.findProgramAddressSync(
-                [Buffer.from("protocol_test3")], program.programId
-            )[0];
-            try {
-                await program.methods
-                    .initializeProtocol(new BN(1000), 500, new BN(HEARTBEAT_INTERVAL), new BN(10))
-                    .accounts({
-                        protocol:      fakePDA,
-                        authority:     provider.wallet.publicKey,
-                        systemProgram: anchor.web3.SystemProgram.programId,
-                    })
-                    .rpc();
-                assert.fail("should reject");
-            } catch (err: any) {
-                assert.ok(err);
-                console.log("✅ Too-short epoch duration rejected");
+                console.log("✅ Invalid vesting schedule rejected");
             }
         });
     });
 
-    // ── Router Registration ───────────────────────────────────────────────────
+    describe("Genesis Distribution", () => {
 
-    describe("Router Registration", () => {
+        before(async () => {
+            ownerAta = (await getOrCreateAssociatedTokenAccount(
+                provider.connection, wallet, rewardMintPDA, wallet.publicKey
+            )).address;
+        });
 
-        const routerId  = "router-mumbai-001";
-        const routerPDA = getRouterPDA(provider.wallet.publicKey, routerId);
-        const lat       = 19_076_000;
-        const long      = 72_877_700;
-        // Device identity is deliberately separate from the owner wallet.
-        const device    = anchor.web3.Keypair.generate();
+        it("mints the initial distribution so operators can bootstrap a stake", async () => {
+            const before = await tokenBalance(ownerAta);
+            if (before < BigInt(STAKE_AMOUNT.muln(4).toString())) {
+                await program.methods.mintGenesis(STAKE_AMOUNT.muln(10))
+                    .accountsPartial({
+                        protocol: protocolPDA, rewardMint: rewardMintPDA,
+                        recipientTokenAccount: ownerAta,
+                        authority: provider.wallet.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .rpc();
+            }
+            const after = await tokenBalance(ownerAta);
+            assert.isTrue(after > 0n);
+            const protocol = await fetchProtocol();
+            assert.isTrue(protocol.genesisMinted.gt(new BN(0)));
+            console.log("✅ Genesis distributed. Operator balance:", after.toString());
+        });
 
-        it("registers a router with a distinct device key", async () => {
-            const exists = await provider.connection.getAccountInfo(routerPDA);
-            if (!exists) {
-                await airdrop(device.publicKey);
+        it("rejects genesis minting from a non-authority", async () => {
+            const attacker = anchor.web3.Keypair.generate();
+            await airdrop(attacker.publicKey);
+            try {
+                await program.methods.mintGenesis(new BN(1))
+                    .accountsPartial({
+                        protocol: protocolPDA, rewardMint: rewardMintPDA,
+                        recipientTokenAccount: ownerAta,
+                        authority: attacker.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .signers([attacker])
+                    .rpc();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.ok(err);
+                console.log("✅ Non-authority genesis mint rejected");
+            }
+        });
 
-                const before = await program.account.protocol.fetch(protocolPDA);
+        it("enforces the genesis cap — the authority cannot mint unbounded supply", async () => {
+            const protocol = await fetchProtocol();
+            const remaining = protocol.genesisAllocation.sub(protocol.genesisMinted);
+            try {
+                await program.methods.mintGenesis(remaining.addn(1))
+                    .accountsPartial({
+                        protocol: protocolPDA, rewardMint: rewardMintPDA,
+                        recipientTokenAccount: ownerAta,
+                        authority: provider.wallet.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .rpc();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.include(err.toString(), "GenesisAllocationExhausted");
+                console.log("✅ Genesis cap enforced (remaining:", remaining.toString() + ")");
+            }
+        });
+    });
+
+    // ── Registration + device identity ────────────────────────────────────────
+
+    const routerId  = "router-mumbai-001";
+    let routerPDA: PublicKey;
+    let stakePDA: PublicKey;
+    let device: anchor.web3.Keypair;
+
+    describe("Router Registration & Device Identity", () => {
+
+        before(() => {
+            routerPDA = getRouterPDA(provider.wallet.publicKey, routerId);
+            stakePDA  = getStakePDA(routerPDA);
+        });
+
+        it("registers a router whose device key differs from the owner wallet", async () => {
+            device = anchor.web3.Keypair.generate();
+            await airdrop(device.publicKey);
+
+            if (!await provider.connection.getAccountInfo(routerPDA)) {
                 await program.methods
-                    .registerRouter(routerId, new BN(lat), new BN(long), device.publicKey)
-                    .accounts({
-                        router:        routerPDA,
-                        protocol:      protocolPDA,
-                        owner:         provider.wallet.publicKey,
+                    .registerRouter(routerId, new BN(19_076_000), new BN(72_877_700), device.publicKey)
+                    .accountsPartial({
+                        router: routerPDA, protocol: protocolPDA,
+                        owner: provider.wallet.publicKey,
                         systemProgram: anchor.web3.SystemProgram.programId,
                     })
                     .rpc();
-                const after = await program.account.protocol.fetch(protocolPDA);
-                assert.equal(after.totalRouters.toNumber(), before.totalRouters.toNumber() + 1);
-
-                // fresh-state assertions — only valid on first registration
-                const freshRouter = await program.account.router.fetch(routerPDA);
-                assert.equal(freshRouter.uptimeScore,              100, "fresh score should be 100");
-                assert.equal(freshRouter.heartbeatCount.toString(), "0", "fresh count should be 0");
-                assert.equal(freshRouter.devicePubkey.toBase58(), device.publicKey.toBase58());
-                assert.equal(freshRouter.deviceKeyVersion, 0);
+            } else {
+                await program.methods.rotateDeviceKey(device.publicKey)
+                    .accountsPartial({ router: routerPDA, owner: provider.wallet.publicKey })
+                    .rpc();
             }
+
             const router = await program.account.router.fetch(routerPDA);
-            // stable properties — valid regardless of history
             assert.equal(router.owner.toBase58(), provider.wallet.publicKey.toBase58());
-            assert.equal(router.routerId,         routerId);
-            console.log("✅ Router registered:", router.routerId);
-            console.log("   PDA:          ", routerPDA.toBase58());
-            console.log("   device:       ", router.devicePubkey.toBase58());
-        });
-
-        it("rejects duplicate registration", async () => {
-            try {
-                await program.methods
-                    .registerRouter(routerId, new BN(lat), new BN(long), device.publicKey)
-                    .accounts({
-                        router:        routerPDA,
-                        protocol:      protocolPDA,
-                        owner:         provider.wallet.publicKey,
-                        systemProgram: anchor.web3.SystemProgram.programId,
-                    })
-                    .rpc();
-                assert.fail("should reject");
-            } catch (err: any) {
-                assert.ok(err);
-                console.log("✅ Duplicate rejected");
-            }
-        });
-
-        it("rejects empty router ID", async () => {
-            const emptyPDA = getRouterPDA(provider.wallet.publicKey, "");
-            try {
-                await program.methods
-                    .registerRouter("", new BN(lat), new BN(long), device.publicKey)
-                    .accounts({
-                        router:        emptyPDA,
-                        protocol:      protocolPDA,
-                        owner:         provider.wallet.publicKey,
-                        systemProgram: anchor.web3.SystemProgram.programId,
-                    })
-                    .rpc();
-                assert.fail("should reject");
-            } catch (err: any) {
-                assert.ok(err);
-                console.log("✅ Empty ID rejected");
-            }
+            assert.equal(router.devicePubkey.toBase58(), device.publicKey.toBase58());
+            assert.notEqual(router.devicePubkey.toBase58(), router.owner.toBase58());
+            console.log("✅ Router registered; device identity separate from owner");
         });
 
         it("rejects invalid latitude", async () => {
             const badPDA = getRouterPDA(provider.wallet.publicKey, "bad-lat");
             try {
                 await program.methods
-                    .registerRouter("bad-lat", new BN(999_000_000), new BN(long), device.publicKey)
-                    .accounts({
-                        router:        badPDA,
-                        protocol:      protocolPDA,
-                        owner:         provider.wallet.publicKey,
+                    .registerRouter("bad-lat", new BN(999_000_000), new BN(0), device.publicKey)
+                    .accountsPartial({
+                        router: badPDA, protocol: protocolPDA, owner: provider.wallet.publicKey,
                         systemProgram: anchor.web3.SystemProgram.programId,
                     })
                     .rpc();
@@ -267,67 +271,12 @@ describe("RouterPulse", () => {
             }
         });
 
-        it("allows multiple routers same owner", async () => {
-            const id2     = "router-delhi-001";
-            const pda2    = getRouterPDA(provider.wallet.publicKey, id2);
-            const device2 = anchor.web3.Keypair.generate();
-            const exists  = await provider.connection.getAccountInfo(pda2);
-            if (!exists) {
-                await airdrop(device2.publicKey);
-                await program.methods
-                    .registerRouter(id2, new BN(28_613_900), new BN(77_209_000), device2.publicKey)
-                    .accounts({
-                        router:        pda2,
-                        protocol:      protocolPDA,
-                        owner:         provider.wallet.publicKey,
-                        systemProgram: anchor.web3.SystemProgram.programId,
-                    })
-                    .rpc();
-            }
-            const router2  = await program.account.router.fetch(pda2);
-            const protocol = await program.account.protocol.fetch(protocolPDA);
-            assert.equal(router2.routerId, id2);
-            console.log("✅ Multiple routers allowed");
-            console.log("   total routers:", protocol.totalRouters.toString());
-        });
-    });
-
-    // ── Device Identity ───────────────────────────────────────────────────────
-
-    describe("Device Identity", () => {
-
-        const routerId  = "router-mumbai-001";
-        const routerPDA = getRouterPDA(provider.wallet.publicKey, routerId);
-
-        it("rotates the device key and the old device is rejected", async () => {
-            const router     = await program.account.router.fetch(routerPDA);
-            const oldDevice   = router.devicePubkey;
-            const newDevice   = anchor.web3.Keypair.generate();
-
-            await program.methods
-                .rotateDeviceKey(newDevice.publicKey)
-                .accountsPartial({
-                    router: routerPDA,
-                    owner:  provider.wallet.publicKey,
-                })
-                .rpc();
-
-            const after = await program.account.router.fetch(routerPDA);
-            assert.equal(after.devicePubkey.toBase58(), newDevice.publicKey.toBase58());
-            assert.equal(after.deviceKeyVersion, router.deviceKeyVersion + 1);
-            console.log("✅ Device key rotated:", oldDevice.toBase58(), "->", after.devicePubkey.toBase58());
-        });
-
-        it("rejects rotation from a non-owner", async () => {
+        it("rejects device key rotation from a non-owner", async () => {
             const attacker = anchor.web3.Keypair.generate();
             await airdrop(attacker.publicKey);
             try {
-                await program.methods
-                    .rotateDeviceKey(anchor.web3.Keypair.generate().publicKey)
-                    .accountsPartial({
-                        router: routerPDA,
-                        owner:  attacker.publicKey,
-                    })
+                await program.methods.rotateDeviceKey(anchor.web3.Keypair.generate().publicKey)
+                    .accountsPartial({ router: routerPDA, owner: attacker.publicKey })
                     .signers([attacker])
                     .rpc();
                 assert.fail("should reject");
@@ -338,84 +287,153 @@ describe("RouterPulse", () => {
         });
     });
 
+    // ── Staking ───────────────────────────────────────────────────────────────
+
+    describe("Staking", () => {
+
+        it("blocks heartbeats from an uncollateralized router", async () => {
+            const protocol = await fetchProtocol();
+            const epoch = currentEpochNumber(protocol, nowSec());
+            const router = await program.account.router.fetch(routerPDA);
+            if (router.stakedAmount.gte(protocol.minStake)) {
+                console.log("ℹ️  Router already staked from a prior run — skipping");
+                return;
+            }
+            try {
+                await program.methods.heartbeat(epoch)
+                    .accountsPartial({
+                        router: routerPDA, protocol: protocolPDA, device: device.publicKey,
+                        routerEpoch: getRouterEpochPDA(routerPDA, epoch),
+                        systemProgram: anchor.web3.SystemProgram.programId,
+                    })
+                    .signers([device])
+                    .rpc();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.include(err.toString(), "InsufficientStake");
+                console.log("✅ Uncollateralized router cannot heartbeat");
+            }
+        });
+
+        it("stakes collateral, moving real tokens into the protocol vault", async () => {
+            const walletBefore = await tokenBalance(ownerAta);
+            const vaultBefore  = await tokenBalance(stakeVaultPDA);
+
+            await program.methods.stake(STAKE_AMOUNT)
+                .accountsPartial({
+                    router: routerPDA, protocol: protocolPDA, stake: stakePDA,
+                    rewardMint: rewardMintPDA, stakeVault: stakeVaultPDA,
+                    ownerTokenAccount: ownerAta, owner: provider.wallet.publicKey,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .rpc();
+
+            const walletAfter = await tokenBalance(ownerAta);
+            const vaultAfter  = await tokenBalance(stakeVaultPDA);
+            const staked = BigInt(STAKE_AMOUNT.toString());
+
+            assert.equal(walletBefore - walletAfter, staked, "operator debited exactly");
+            assert.equal(vaultAfter - vaultBefore, staked, "vault credited exactly");
+
+            const stake = await program.account.stake.fetch(stakePDA);
+            const router = await program.account.router.fetch(routerPDA);
+            assert.equal(stake.amount.toString(), STAKE_AMOUNT.toString());
+            // The denormalized mirror on Router must track the Stake account.
+            assert.equal(router.stakedAmount.toString(), stake.amount.toString());
+            console.log("✅ Staked", staked.toString(), "— vault balance:", vaultAfter.toString());
+        });
+
+        it("rejects a zero stake", async () => {
+            try {
+                await program.methods.stake(new BN(0))
+                    .accountsPartial({
+                        router: routerPDA, protocol: protocolPDA, stake: stakePDA,
+                        rewardMint: rewardMintPDA, stakeVault: stakeVaultPDA,
+                        ownerTokenAccount: ownerAta, owner: provider.wallet.publicKey,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                        systemProgram: anchor.web3.SystemProgram.programId,
+                    })
+                    .rpc();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.include(err.toString(), "InvalidStakeAmount");
+                console.log("✅ Zero stake rejected");
+            }
+        });
+
+        it("rejects unstaking more than is staked", async () => {
+            const stake = await program.account.stake.fetch(stakePDA);
+            try {
+                await program.methods.unstake(stake.amount.addn(1))
+                    .accountsPartial({
+                        router: routerPDA, protocol: protocolPDA, stake: stakePDA,
+                        rewardMint: rewardMintPDA, stakeVault: stakeVaultPDA,
+                        ownerTokenAccount: ownerAta, owner: provider.wallet.publicKey,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .rpc();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.include(err.toString(), "UnstakeExceedsStake");
+                console.log("✅ Over-unstake rejected");
+            }
+        });
+
+        it("rejects an unstake that would drop an active router below the minimum", async () => {
+            const router = await program.account.router.fetch(routerPDA);
+            if (JSON.stringify(router.status) !== JSON.stringify({ active: {} })) {
+                console.log("ℹ️  Router not active yet — minimum-stake floor tested after activation");
+                return;
+            }
+            const stake = await program.account.stake.fetch(stakePDA);
+            try {
+                await program.methods.unstake(stake.amount)
+                    .accountsPartial({
+                        router: routerPDA, protocol: protocolPDA, stake: stakePDA,
+                        rewardMint: rewardMintPDA, stakeVault: stakeVaultPDA,
+                        ownerTokenAccount: ownerAta, owner: provider.wallet.publicKey,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .rpc();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.include(err.toString(), "UnstakeBelowMinimum");
+                console.log("✅ Cannot strip collateral from an active router");
+            }
+        });
+    });
+
     // ── Heartbeat ─────────────────────────────────────────────────────────────
 
     describe("Heartbeat", () => {
 
-        const routerId  = "router-mumbai-001";
-        const routerPDA = getRouterPDA(provider.wallet.publicKey, routerId);
-        // set by "rotates the device key" above — the currently-valid device
-        let device: anchor.web3.Keypair;
-
-        before(async () => {
-            // On a persistent validator the router may be Suspended from a
-            // prior run. Reinstate it so all heartbeat tests start clean.
-            const router = await program.account.router.fetch(routerPDA);
-            if (JSON.stringify(router.status) === JSON.stringify({ suspended: {} })) {
-                await program.methods
-                    .reinstateRouter()
-                    .accountsPartial({
-                        router:    routerPDA,
-                        protocol:  protocolPDA,
-                        authority: provider.wallet.publicKey,
-                    })
-                    .rpc();
-                console.log("ℹ️  Router reinstated before heartbeat suite");
-            }
-        });
-
-        // The "Device Identity" suite rotated the device key, so we need a
-        // fresh keypair we actually control for heartbeat tests.
-        before(async () => {
-            device = anchor.web3.Keypair.generate();
-            await airdrop(device.publicKey);
-            await program.methods
-                .rotateDeviceKey(device.publicKey)
-                .accountsPartial({ router: routerPDA, owner: provider.wallet.publicKey })
-                .rpc();
-        });
-
-        function heartbeatCall(epochNumber: BN, signer: anchor.web3.Keypair) {
-            const routerEpochPDA = getRouterEpochPDA(routerPDA, epochNumber);
-            return program.methods
-                .heartbeat(epochNumber)
+        const heartbeat = (epoch: BN, signer: anchor.web3.Keypair) =>
+            program.methods.heartbeat(epoch)
                 .accountsPartial({
-                    router:        routerPDA,
-                    protocol:      protocolPDA,
-                    device:        signer.publicKey,
-                    routerEpoch:   routerEpochPDA,
+                    router: routerPDA, protocol: protocolPDA, device: signer.publicKey,
+                    routerEpoch: getRouterEpochPDA(routerPDA, epoch),
                     systemProgram: anchor.web3.SystemProgram.programId,
                 })
                 .signers([signer]);
-        }
 
-        it("first heartbeat activates router", async () => {
-            const before      = await program.account.router.fetch(routerPDA);
-            const countBefore = before.heartbeatCount.toNumber();
-            const protocol    = await program.account.protocol.fetch(protocolPDA);
-            const epochNumber = currentEpochNumber(protocol, nowSec());
+        it("first heartbeat activates the collateralized router", async () => {
+            const protocol = await fetchProtocol();
+            const epoch = currentEpochNumber(protocol, nowSec());
+            await heartbeat(epoch, device).rpc();
 
-            await heartbeatCall(epochNumber, device).rpc();
-
-            const after = await program.account.router.fetch(routerPDA);
-            assert.deepEqual(after.status, { active: {} });
-            assert.equal(after.heartbeatCount.toNumber(), countBefore + 1);
-            assert.isAtMost(after.uptimeScore, 100);
-            assert.isAbove(after.lastHeartbeat.toNumber(), 0);
-
-            const routerEpoch = await program.account.routerEpoch.fetch(getRouterEpochPDA(routerPDA, epochNumber));
-            assert.equal(routerEpoch.heartbeats, 1);
-            assert.equal(routerEpoch.finalized, false);
-            console.log("✅ Router activated");
-            console.log("   status:", JSON.stringify(after.status));
-            console.log("   epoch heartbeats:", routerEpoch.heartbeats);
+            const router = await program.account.router.fetch(routerPDA);
+            assert.deepEqual(router.status, { active: {} });
+            const routerEpoch = await program.account.routerEpoch.fetch(getRouterEpochPDA(routerPDA, epoch));
+            assert.isAtLeast(routerEpoch.heartbeats, 1);
+            console.log("✅ Router active; epoch heartbeats:", routerEpoch.heartbeats);
         });
 
-        it("rejects replay in same block", async () => {
-            const protocol    = await program.account.protocol.fetch(protocolPDA);
-            const epochNumber = currentEpochNumber(protocol, nowSec());
+        it("rejects a replay within the same block", async () => {
+            const protocol = await fetchProtocol();
+            const epoch = currentEpochNumber(protocol, nowSec());
             try {
-                await heartbeatCall(epochNumber, device).rpc();
+                await heartbeat(epoch, device).rpc();
                 assert.fail("should reject");
             } catch (err: any) {
                 assert.ok(err);
@@ -426,10 +444,10 @@ describe("RouterPulse", () => {
         it("rejects a signer that is not the registered device key", async () => {
             const impostor = anchor.web3.Keypair.generate();
             await airdrop(impostor.publicKey);
-            const protocol    = await program.account.protocol.fetch(protocolPDA);
-            const epochNumber = currentEpochNumber(protocol, nowSec());
+            const protocol = await fetchProtocol();
+            const epoch = currentEpochNumber(protocol, nowSec());
             try {
-                await heartbeatCall(epochNumber, impostor).rpc();
+                await heartbeat(epoch, impostor).rpc();
                 assert.fail("should reject");
             } catch (err: any) {
                 assert.include(err.toString(), "InvalidDeviceSigner");
@@ -438,12 +456,11 @@ describe("RouterPulse", () => {
         });
 
         it("rejects a wrong epoch number", async () => {
-            const protocol      = await program.account.protocol.fetch(protocolPDA);
-            const epochNumber   = currentEpochNumber(protocol, nowSec());
-            const wrongEpoch    = epochNumber.addn(7);
+            const protocol = await fetchProtocol();
+            const epoch = currentEpochNumber(protocol, nowSec());
             await sleep(2000);
             try {
-                await heartbeatCall(wrongEpoch, device).rpc();
+                await heartbeat(epoch.addn(7), device).rpc();
                 assert.fail("should reject");
             } catch (err: any) {
                 assert.include(err.toString(), "WrongEpochNumber");
@@ -451,29 +468,14 @@ describe("RouterPulse", () => {
             }
         });
 
-        it("increments count on valid heartbeat", async () => {
-            const before       = await program.account.router.fetch(routerPDA);
-            const countBefore  = before.heartbeatCount.toNumber();
-            const protocol     = await program.account.protocol.fetch(protocolPDA);
-            const epochNumber  = currentEpochNumber(protocol, nowSec());
-
-            await heartbeatCall(epochNumber, device).rpc();
-
-            const after = await program.account.router.fetch(routerPDA);
-            assert.equal(after.heartbeatCount.toNumber(), countBefore + 1);
-            assert.isAtMost(after.uptimeScore, 100);
-            console.log("✅ Count incremented:", after.heartbeatCount.toString());
-        });
-
         it("blocks heartbeats while the protocol is paused", async () => {
             await program.methods.pauseProtocol()
                 .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
                 .rpc();
-
-            const protocol    = await program.account.protocol.fetch(protocolPDA);
-            const epochNumber = currentEpochNumber(protocol, nowSec());
+            const protocol = await fetchProtocol();
+            const epoch = currentEpochNumber(protocol, nowSec());
             try {
-                await heartbeatCall(epochNumber, device).rpc();
+                await heartbeat(epoch, device).rpc();
                 assert.fail("should reject");
             } catch (err: any) {
                 assert.include(err.toString(), "ProtocolPaused");
@@ -486,76 +488,54 @@ describe("RouterPulse", () => {
         });
     });
 
-    // ── Epoch Rewards ─────────────────────────────────────────────────────────
-    // These tests wait for a real epoch (EPOCH_DURATION seconds) to close,
-    // proving rewards are computed strictly from heartbeats received inside
-    // that specific window — not a lifetime counter that can go stale.
+    // ── Epoch → reward → vesting, end to end ──────────────────────────────────
 
-    describe("Epoch Rewards", function () {
-        this.timeout(EPOCH_DURATION * 1000 + 60_000);
+    describe("Epoch Rewards, Emissions and Vesting", function () {
+        this.timeout(EPOCH_DURATION * 1000 + 240_000);
 
-        const routerId  = "router-mumbai-001";
-        const routerPDA = getRouterPDA(provider.wallet.publicKey, routerId);
-        let device: anchor.web3.Keypair;
         let epochNumber: BN;
 
-        it("funds the vault", async () => {
-            const balance = await provider.connection.getBalance(rewardVaultPDA);
-            if (balance < anchor.web3.LAMPORTS_PER_SOL) {
-                const tx = new anchor.web3.Transaction().add(
-                    anchor.web3.SystemProgram.transfer({
-                        fromPubkey: provider.wallet.publicKey,
-                        toPubkey:   rewardVaultPDA,
-                        lamports:   10 * anchor.web3.LAMPORTS_PER_SOL,
-                    })
-                );
-                await provider.sendAndConfirm(tx);
-            }
-            const funded = await provider.connection.getBalance(rewardVaultPDA);
-            assert.isAbove(funded, 0);
-            console.log("✅ Vault balance:", funded, "lamports");
-        });
-
-        it("sends heartbeats inside the current epoch", async () => {
-            const router = await program.account.router.fetch(routerPDA);
-            if (JSON.stringify(router.status) === JSON.stringify({ suspended: {} })) {
-                await program.methods.reinstateRouter()
-                    .accountsPartial({ router: routerPDA, protocol: protocolPDA, authority: provider.wallet.publicKey })
-                    .rpc();
-            }
-
-            device = anchor.web3.Keypair.generate();
-            await airdrop(device.publicKey);
-            await program.methods.rotateDeviceKey(device.publicKey)
-                .accountsPartial({ router: routerPDA, owner: provider.wallet.publicKey })
-                .rpc();
-
-            const protocol = await program.account.protocol.fetch(protocolPDA);
+        it("records heartbeats inside the current epoch", async () => {
+            const protocol = await fetchProtocol();
             epochNumber = currentEpochNumber(protocol, nowSec());
-            const routerEpochPDA = getRouterEpochPDA(routerPDA, epochNumber);
-
             await program.methods.heartbeat(epochNumber)
                 .accountsPartial({
                     router: routerPDA, protocol: protocolPDA, device: device.publicKey,
-                    routerEpoch: routerEpochPDA, systemProgram: anchor.web3.SystemProgram.programId,
+                    routerEpoch: getRouterEpochPDA(routerPDA, epochNumber),
+                    systemProgram: anchor.web3.SystemProgram.programId,
                 })
                 .signers([device])
                 .rpc();
-
-            const routerEpoch = await program.account.routerEpoch.fetch(routerEpochPDA);
-            // >=1, not ===1: the "Heartbeat" suite above already sent a couple
-            // of heartbeats for this same router, and — since epoch_duration
-            // is short for test purposes — they can land in this same epoch.
-            assert.isAtLeast(routerEpoch.heartbeats, 1);
-            console.log("✅ Heartbeat recorded for epoch", epochNumber.toString(), "count:", routerEpoch.heartbeats);
+            const re = await program.account.routerEpoch.fetch(getRouterEpochPDA(routerPDA, epochNumber));
+            assert.isAtLeast(re.heartbeats, 1);
+            console.log("✅ Heartbeats in epoch", epochNumber.toString() + ":", re.heartbeats);
         });
 
-        it("rejects finalization before the epoch ends", async () => {
-            const routerEpochPDA = getRouterEpochPDA(routerPDA, epochNumber);
+        const finalize = (epoch: BN) =>
+            program.methods.finalizeRouterEpoch(epoch)
+                .accountsPartial({
+                    router: routerPDA, protocol: protocolPDA,
+                    routerEpoch: getRouterEpochPDA(routerPDA, epoch),
+                    stake: stakePDA, emission: getEmissionPDA(epoch),
+                    cranker: provider.wallet.publicKey,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .rpc();
+
+        const claim = (epoch: BN) =>
+            program.methods.claimReward(epoch)
+                .accountsPartial({
+                    router: routerPDA, protocol: protocolPDA,
+                    routerEpoch: getRouterEpochPDA(routerPDA, epoch),
+                    vesting: getVestingPDA(routerPDA, epoch),
+                    owner: provider.wallet.publicKey,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .rpc();
+
+        it("rejects finalization before the epoch has ended", async () => {
             try {
-                await program.methods.finalizeRouterEpoch(epochNumber)
-                    .accountsPartial({ router: routerPDA, protocol: protocolPDA, routerEpoch: routerEpochPDA })
-                    .rpc();
+                await finalize(epochNumber);
                 assert.fail("should reject");
             } catch (err: any) {
                 assert.include(err.toString(), "EpochNotEnded");
@@ -564,15 +544,8 @@ describe("RouterPulse", () => {
         });
 
         it("rejects claiming before finalization", async () => {
-            const routerEpochPDA = getRouterEpochPDA(routerPDA, epochNumber);
             try {
-                await program.methods.claimReward(epochNumber)
-                    .accountsPartial({
-                        router: routerPDA, protocol: protocolPDA, routerEpoch: routerEpochPDA,
-                        rewardVault: rewardVaultPDA, owner: provider.wallet.publicKey,
-                        systemProgram: anchor.web3.SystemProgram.programId,
-                    })
-                    .rpc();
+                await claim(epochNumber);
                 assert.fail("should reject");
             } catch (err: any) {
                 assert.include(err.toString(), "EpochNotFinalized");
@@ -580,113 +553,382 @@ describe("RouterPulse", () => {
             }
         });
 
-        it("finalizes the epoch once it ends, then pays out on claim exactly once", async () => {
-            const protocol = await program.account.protocol.fetch(protocolPDA);
-            const [, epochEnd] = [null, protocol.genesisTime.toNumber()
-                + (epochNumber.toNumber() + 1) * protocol.epochDuration.toNumber()];
-            const waitMs = Math.max(0, (epochEnd - nowSec() + 2) * 1000);
+        it("finalizes once the epoch closes, opening the epoch's emission budget", async () => {
+            const protocol = await fetchProtocol();
+            const waitMs = Math.max(0, (epochEndTime(protocol, epochNumber) - nowSec() + 2) * 1000);
             console.log(`   waiting ${Math.ceil(waitMs / 1000)}s for epoch to close...`);
             await sleep(waitMs);
 
-            const routerEpochPDA = getRouterEpochPDA(routerPDA, epochNumber);
+            await finalize(epochNumber);
 
-            await program.methods.finalizeRouterEpoch(epochNumber)
-                .accountsPartial({ router: routerPDA, protocol: protocolPDA, routerEpoch: routerEpochPDA })
-                .rpc();
+            const re = await program.account.routerEpoch.fetch(getRouterEpochPDA(routerPDA, epochNumber));
+            assert.equal(re.finalized, true);
+            assert.isAbove(re.rewardAmount.toNumber(), 0);
 
-            const finalized = await program.account.routerEpoch.fetch(routerEpochPDA);
-            assert.equal(finalized.finalized, true);
-            assert.isAbove(finalized.rewardAmount.toNumber(), 0);
-            console.log("✅ Epoch finalized. uptime_bps:", finalized.uptimeBps, "reward:", finalized.rewardAmount.toString());
+            const emission = await program.account.emissionSchedule.fetch(getEmissionPDA(epochNumber));
+            assert.isAbove(emission.totalEmission.toNumber(), 0);
+            assert.equal(emission.allocated.toString(), re.rewardAmount.toString(),
+                "the epoch's allocation must equal what was actually awarded");
 
-            const ownerBefore = await provider.connection.getBalance(provider.wallet.publicKey);
-            await program.methods.claimReward(epochNumber)
-                .accountsPartial({
-                    router: routerPDA, protocol: protocolPDA, routerEpoch: routerEpochPDA,
-                    rewardVault: rewardVaultPDA, owner: provider.wallet.publicKey,
-                    systemProgram: anchor.web3.SystemProgram.programId,
-                })
-                .rpc();
-            const ownerAfter = await provider.connection.getBalance(provider.wallet.publicKey);
-            assert.isAbove(ownerAfter, ownerBefore);
-            console.log("✅ Reward claimed. balance diff:", ownerAfter - ownerBefore, "lamports");
+            console.log("✅ Finalized. uptime_bps:", re.uptimeBps,
+                        "reward:", re.rewardAmount.toString(),
+                        "slash:", re.slashAmount.toString());
+            console.log("   emission budget:", emission.totalEmission.toString(),
+                        "allocated:", emission.allocated.toString());
+        });
 
-            // double-claim must fail
+        it("rejects double finalization", async () => {
             try {
-                await program.methods.claimReward(epochNumber)
-                    .accountsPartial({
-                        router: routerPDA, protocol: protocolPDA, routerEpoch: routerEpochPDA,
-                        rewardVault: rewardVaultPDA, owner: provider.wallet.publicKey,
-                        systemProgram: anchor.web3.SystemProgram.programId,
-                    })
-                    .rpc();
-                assert.fail("should reject double claim");
-            } catch (err: any) {
-                assert.include(err.toString(), "EpochAlreadyClaimed");
-                console.log("✅ Double claim rejected");
-            }
-
-            // re-finalizing an already-finalized epoch must fail
-            try {
-                await program.methods.finalizeRouterEpoch(epochNumber)
-                    .accountsPartial({ router: routerPDA, protocol: protocolPDA, routerEpoch: routerEpochPDA })
-                    .rpc();
-                assert.fail("should reject double finalize");
+                await finalize(epochNumber);
+                assert.fail("should reject");
             } catch (err: any) {
                 assert.include(err.toString(), "EpochAlreadyFinalized");
                 console.log("✅ Double finalize rejected");
             }
         });
-    });
 
-    // ── Penalty ───────────────────────────────────────────────────────────────
+        it("claims the epoch into a vesting schedule — granting rights, not tokens", async () => {
+            const supplyBefore = (await getMint(provider.connection, rewardMintPDA)).supply;
 
-    describe("Penalty Engine", () => {
+            await claim(epochNumber);
 
-        const routerId  = "router-delhi-001";
-        const routerPDA = getRouterPDA(provider.wallet.publicKey, routerId);
+            const vesting = await program.account.rewardVesting.fetch(getVestingPDA(routerPDA, epochNumber));
+            const re = await program.account.routerEpoch.fetch(getRouterEpochPDA(routerPDA, epochNumber));
+            assert.equal(re.claimed, true);
+            assert.equal(vesting.totalAmount.toString(), re.rewardAmount.toString());
+            assert.equal(vesting.claimedAmount.toString(), "0");
 
-        it("applies penalty correctly", async () => {
-            const before = await program.account.router.fetch(routerPDA);
-            await program.methods.applyPenalty()
-                .accountsPartial({
-                    router:    routerPDA,
-                    protocol:  protocolPDA,
-                    authority: provider.wallet.publicKey,
-                })
-                .rpc();
-            const after = await program.account.router.fetch(routerPDA);
+            // Claiming must not mint. Supply only moves when tokens vest.
+            const supplyAfter = (await getMint(provider.connection, rewardMintPDA)).supply;
+            assert.equal(supplyAfter, supplyBefore, "claim_reward must not change token supply");
 
-            // uptime score always drops by 20 (or floors at 0)
-            assert.isAtMost(after.uptimeScore, before.uptimeScore);
-
-            // total_penalties increases only when total_rewards > 0
-            if (before.totalRewards.toNumber() > 0) {
-                assert.isAbove(after.totalPenalties.toNumber(), before.totalPenalties.toNumber());
-            }
-
-            console.log("✅ Penalty applied");
-            console.log("   score before:", before.uptimeScore);
-            console.log("   score after: ", after.uptimeScore);
-            console.log("   penalties:   ", after.totalPenalties.toString());
+            console.log("✅ Vesting granted:", vesting.totalAmount.toString(),
+                        "over", vesting.vestingDuration.toString() + "s (supply unchanged)");
         });
 
-        it("rejects penalty from non-authority", async () => {
+        it("rejects double claiming the same epoch", async () => {
+            try {
+                await claim(epochNumber);
+                assert.fail("should reject");
+            } catch (err: any) {
+                // Two independent guards fire here: the epoch's `claimed`
+                // flag, and `init` on the vesting PDA (already in use).
+                assert.ok(err);
+                console.log("✅ Double claim rejected");
+            }
+        });
+
+        it("mints only the vested portion, and only ever the un-released delta", async () => {
+            const claimVested = () =>
+                program.methods.claimVested(epochNumber)
+                    .accountsPartial({
+                        router: routerPDA, protocol: protocolPDA,
+                        vesting: getVestingPDA(routerPDA, epochNumber),
+                        rewardMint: rewardMintPDA,
+                        beneficiaryTokenAccount: ownerAta,
+                        beneficiary: provider.wallet.publicKey,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .rpc();
+
+            // Vesting is linear over REWARD_VESTING seconds with no cliff,
+            // so a slice is already releasable.
+            await sleep(3000);
+
+            const balanceBefore = await tokenBalance(ownerAta);
+            await claimVested();
+            const balanceAfter = await tokenBalance(ownerAta);
+            assert.isTrue(balanceAfter > balanceBefore, "vested tokens must be minted to the operator");
+
+            const v1 = await program.account.rewardVesting.fetch(getVestingPDA(routerPDA, epochNumber));
+            assert.isTrue(v1.claimedAmount.gt(new BN(0)));
+            assert.isTrue(v1.claimedAmount.lte(v1.totalAmount), "can never release more than granted");
+            const firstSlice = balanceAfter - balanceBefore;
+            console.log("✅ First vest released:", firstSlice.toString(),
+                        "of", v1.totalAmount.toString());
+
+            // A second call immediately after should release only the tiny
+            // additional slice that vested in between — never the same
+            // tokens twice.
+            await sleep(3000);
+            const beforeSecond = await tokenBalance(ownerAta);
+            await claimVested();
+            const afterSecond = await tokenBalance(ownerAta);
+            const secondSlice = afterSecond - beforeSecond;
+
+            const v2 = await program.account.rewardVesting.fetch(getVestingPDA(routerPDA, epochNumber));
+            assert.isTrue(v2.claimedAmount.lte(v2.totalAmount));
+            // `claimedAmount` started at 0, so the operator's total balance
+            // gain across both calls must equal it exactly — proving no
+            // slice was ever released twice.
+            assert.equal(
+                afterSecond - balanceBefore,
+                BigInt(v2.claimedAmount.toString()),
+                "cumulative balance gain must equal the vesting record's claimed total"
+            );
+            console.log("✅ Second vest released only the new delta:", secondSlice.toString(),
+                        "(total claimed:", v2.claimedAmount.toString() + ")");
+        });
+
+        it("fully vests and then has nothing left to release", async () => {
+            const protocol = await fetchProtocol();
+            const vesting = await program.account.rewardVesting.fetch(getVestingPDA(routerPDA, epochNumber));
+            const endsAt = vesting.startTime.toNumber() + vesting.vestingDuration.toNumber();
+            const waitMs = Math.max(0, (endsAt - nowSec() + 2) * 1000);
+            console.log(`   waiting ${Math.ceil(waitMs / 1000)}s for full vest...`);
+            await sleep(waitMs);
+
+            const claimVested = () =>
+                program.methods.claimVested(epochNumber)
+                    .accountsPartial({
+                        router: routerPDA, protocol: protocolPDA,
+                        vesting: getVestingPDA(routerPDA, epochNumber),
+                        rewardMint: rewardMintPDA, beneficiaryTokenAccount: ownerAta,
+                        beneficiary: provider.wallet.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .rpc();
+
+            await claimVested();
+            const done = await program.account.rewardVesting.fetch(getVestingPDA(routerPDA, epochNumber));
+            assert.equal(done.claimedAmount.toString(), done.totalAmount.toString(),
+                "the whole grant must eventually vest — exactly, never more");
+            console.log("✅ Fully vested:", done.claimedAmount.toString());
+
+            // And now there is genuinely nothing further to release.
+            try {
+                await claimVested();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.include(err.toString(), "NothingVested");
+                console.log("✅ Over-claiming a fully vested grant rejected");
+            }
+
+            // Total minted must equal genesis + everything vested — no
+            // supply appeared from anywhere else.
+            const mint = await getMint(provider.connection, rewardMintPDA);
+            const p = await fetchProtocol();
+            assert.equal(mint.supply.toString(), p.totalMinted.toString(),
+                "on-chain supply must match the protocol's own minted accounting");
+            console.log("✅ Supply reconciles with protocol accounting:", mint.supply.toString());
+        });
+    });
+
+    // ── Slashing ──────────────────────────────────────────────────────────────
+
+    describe("Slashing", function () {
+        this.timeout(EPOCH_DURATION * 1000 + 240_000);
+
+        // A second router that stakes but never heartbeats — 0% uptime,
+        // which lands in the worst performance tier: no reward, maximum
+        // slash.
+        const badRouterId = "router-offline-001";
+        let badRouterPDA: PublicKey;
+        let badStakePDA: PublicKey;
+        let badDevice: anchor.web3.Keypair;
+        let badEpoch: BN;
+
+        before(async () => {
+            badRouterPDA = getRouterPDA(provider.wallet.publicKey, badRouterId);
+            badStakePDA  = getStakePDA(badRouterPDA);
+            badDevice    = anchor.web3.Keypair.generate();
+            await airdrop(badDevice.publicKey);
+
+            if (!await provider.connection.getAccountInfo(badRouterPDA)) {
+                await program.methods
+                    .registerRouter(badRouterId, new BN(28_613_900), new BN(77_209_000), badDevice.publicKey)
+                    .accountsPartial({
+                        router: badRouterPDA, protocol: protocolPDA,
+                        owner: provider.wallet.publicKey,
+                        systemProgram: anchor.web3.SystemProgram.programId,
+                    })
+                    .rpc();
+            } else {
+                await program.methods.rotateDeviceKey(badDevice.publicKey)
+                    .accountsPartial({ router: badRouterPDA, owner: provider.wallet.publicKey })
+                    .rpc();
+            }
+
+            await program.methods.stake(STAKE_AMOUNT)
+                .accountsPartial({
+                    router: badRouterPDA, protocol: protocolPDA, stake: badStakePDA,
+                    rewardMint: rewardMintPDA, stakeVault: stakeVaultPDA,
+                    ownerTokenAccount: ownerAta, owner: provider.wallet.publicKey,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .rpc();
+        });
+
+        it("opens an epoch with a single heartbeat, then goes dark", async () => {
+            const protocol = await fetchProtocol();
+            badEpoch = currentEpochNumber(protocol, nowSec());
+            await program.methods.heartbeat(badEpoch)
+                .accountsPartial({
+                    router: badRouterPDA, protocol: protocolPDA, device: badDevice.publicKey,
+                    routerEpoch: getRouterEpochPDA(badRouterPDA, badEpoch),
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .signers([badDevice])
+                .rpc();
+            console.log("✅ Bad router sent 1 of", EPOCH_DURATION / HEARTBEAT_INTERVAL, "expected heartbeats");
+        });
+
+        it("finalizes the bad epoch into a reduced reward and a real slash", async () => {
+            const protocol = await fetchProtocol();
+            const waitMs = Math.max(0, (epochEndTime(protocol, badEpoch) - nowSec() + 2) * 1000);
+            console.log(`   waiting ${Math.ceil(waitMs / 1000)}s for epoch to close...`);
+            await sleep(waitMs);
+
+            await program.methods.finalizeRouterEpoch(badEpoch)
+                .accountsPartial({
+                    router: badRouterPDA, protocol: protocolPDA,
+                    routerEpoch: getRouterEpochPDA(badRouterPDA, badEpoch),
+                    stake: badStakePDA, emission: getEmissionPDA(badEpoch),
+                    cranker: provider.wallet.publicKey,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .rpc();
+
+            const re = await program.account.routerEpoch.fetch(getRouterEpochPDA(badRouterPDA, badEpoch));
+            // 1 of 2 expected heartbeats = 50% uptime -> worst tier.
+            assert.isBelow(re.uptimeBps, 7000);
+            assert.equal(re.rewardAmount.toString(), "0", "bottom tier earns nothing");
+            assert.isAbove(re.slashAmount.toNumber(), 0, "bottom tier is slashed");
+            console.log("✅ uptime_bps:", re.uptimeBps, "reward:", re.rewardAmount.toString(),
+                        "slash:", re.slashAmount.toString());
+        });
+
+        it("executes the slash, moving collateral from the stake vault to the treasury", async () => {
+            const stakeBefore    = await program.account.stake.fetch(badStakePDA);
+            const vaultBefore    = await tokenBalance(stakeVaultPDA);
+            const treasuryBefore = await tokenBalance(treasuryPDA);
+            const re = await program.account.routerEpoch.fetch(getRouterEpochPDA(badRouterPDA, badEpoch));
+            const expected = BigInt(re.slashAmount.toString());
+
+            await program.methods.slashRouter(badEpoch)
+                .accountsPartial({
+                    router: badRouterPDA, protocol: protocolPDA,
+                    routerEpoch: getRouterEpochPDA(badRouterPDA, badEpoch),
+                    stake: badStakePDA, rewardMint: rewardMintPDA,
+                    stakeVault: stakeVaultPDA, treasury: treasuryPDA,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                })
+                .rpc();
+
+            const vaultAfter    = await tokenBalance(stakeVaultPDA);
+            const treasuryAfter = await tokenBalance(treasuryPDA);
+            const stakeAfter    = await program.account.stake.fetch(badStakePDA);
+            const routerAfter   = await program.account.router.fetch(badRouterPDA);
+
+            assert.equal(vaultBefore - vaultAfter, expected, "vault debited by exactly the slash");
+            assert.equal(treasuryAfter - treasuryBefore, expected, "treasury credited by exactly the slash");
+            assert.equal(
+                stakeBefore.amount.sub(stakeAfter.amount).toString(), expected.toString(),
+                "stake accounting matches the token movement"
+            );
+            assert.equal(routerAfter.stakedAmount.toString(), stakeAfter.amount.toString(),
+                "the router's denormalized mirror stays in sync after a slash");
+            console.log("✅ Slashed", expected.toString(), "→ treasury:", treasuryAfter.toString());
+        });
+
+        it("rejects slashing the same epoch twice", async () => {
+            try {
+                await program.methods.slashRouter(badEpoch)
+                    .accountsPartial({
+                        router: badRouterPDA, protocol: protocolPDA,
+                        routerEpoch: getRouterEpochPDA(badRouterPDA, badEpoch),
+                        stake: badStakePDA, rewardMint: rewardMintPDA,
+                        stakeVault: stakeVaultPDA, treasury: treasuryPDA,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .rpc();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.include(err.toString(), "EpochAlreadySlashed");
+                console.log("✅ Double slash rejected");
+            }
+        });
+
+        it("burns slashed collateral out of the treasury, reducing total supply", async () => {
+            const treasuryBefore = await tokenBalance(treasuryPDA);
+            assert.isTrue(treasuryBefore > 0n, "treasury should hold slashed collateral by now");
+            const supplyBefore = (await getMint(provider.connection, rewardMintPDA)).supply;
+
+            const burnAmount = new BN(treasuryBefore.toString());
+            await program.methods.burnTreasury(burnAmount)
+                .accountsPartial({
+                    protocol: protocolPDA, rewardMint: rewardMintPDA, treasury: treasuryPDA,
+                    authority: provider.wallet.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
+                })
+                .rpc();
+
+            const treasuryAfter = await tokenBalance(treasuryPDA);
+            const supplyAfter = (await getMint(provider.connection, rewardMintPDA)).supply;
+            assert.equal(treasuryAfter, 0n);
+            assert.equal(supplyBefore - supplyAfter, BigInt(burnAmount.toString()),
+                "burning must actually reduce circulating supply");
+
+            const p = await fetchProtocol();
+            assert.equal(p.totalBurned.toString(), burnAmount.toString());
+            console.log("✅ Burned", burnAmount.toString(), "— supply:",
+                        supplyBefore.toString(), "→", supplyAfter.toString());
+        });
+    });
+
+    // ── Unstaking ─────────────────────────────────────────────────────────────
+
+    describe("Unstaking", () => {
+
+        it("returns collateral from the vault to the operator", async () => {
+            const stake = await program.account.stake.fetch(stakePDA);
+            const protocol = await fetchProtocol();
+            // Keep the router above the minimum — it is still active.
+            const withdrawable = stake.amount.sub(protocol.minStake);
+            assert.isTrue(withdrawable.gt(new BN(0)), "test needs headroom above min stake");
+
+            const walletBefore = await tokenBalance(ownerAta);
+            const vaultBefore  = await tokenBalance(stakeVaultPDA);
+
+            await program.methods.unstake(withdrawable)
+                .accountsPartial({
+                    router: routerPDA, protocol: protocolPDA, stake: stakePDA,
+                    rewardMint: rewardMintPDA, stakeVault: stakeVaultPDA,
+                    ownerTokenAccount: ownerAta, owner: provider.wallet.publicKey,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                })
+                .rpc();
+
+            const walletAfter = await tokenBalance(ownerAta);
+            const vaultAfter  = await tokenBalance(stakeVaultPDA);
+            const moved = BigInt(withdrawable.toString());
+
+            assert.equal(walletAfter - walletBefore, moved, "operator credited exactly");
+            assert.equal(vaultBefore - vaultAfter, moved, "vault debited exactly");
+
+            const after = await program.account.stake.fetch(stakePDA);
+            const router = await program.account.router.fetch(routerPDA);
+            assert.equal(after.amount.toString(), protocol.minStake.toString());
+            assert.equal(router.stakedAmount.toString(), after.amount.toString());
+            console.log("✅ Unstaked", moved.toString(), "— remaining:", after.amount.toString());
+        });
+
+        it("rejects an unstake from a non-owner", async () => {
             const attacker = anchor.web3.Keypair.generate();
             await airdrop(attacker.publicKey);
             try {
-                await program.methods.applyPenalty()
+                await program.methods.unstake(new BN(1))
                     .accountsPartial({
-                        router:    routerPDA,
-                        protocol:  protocolPDA,
-                        authority: attacker.publicKey,
+                        router: routerPDA, protocol: protocolPDA, stake: stakePDA,
+                        rewardMint: rewardMintPDA, stakeVault: stakeVaultPDA,
+                        ownerTokenAccount: ownerAta, owner: attacker.publicKey,
+                        tokenProgram: TOKEN_PROGRAM_ID,
                     })
                     .signers([attacker])
                     .rpc();
                 assert.fail("should reject");
             } catch (err: any) {
                 assert.ok(err);
-                console.log("✅ Non-authority penalty rejected");
+                console.log("✅ Non-owner unstake rejected");
             }
         });
     });
@@ -695,41 +937,33 @@ describe("RouterPulse", () => {
 
     describe("Admin Controls", () => {
 
-        it("pauses and resumes protocol", async () => {
-            // guard: resume first if a prior run left the protocol paused
-            const current = await program.account.protocol.fetch(protocolPDA);
-            if (current.isPaused) {
+        it("pauses and resumes the protocol", async () => {
+            if ((await fetchProtocol()).isPaused) {
                 await program.methods.resumeProtocol()
                     .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
                     .rpc();
             }
-
             await program.methods.pauseProtocol()
                 .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
                 .rpc();
-            const paused = await program.account.protocol.fetch(protocolPDA);
-            assert.equal(paused.isPaused, true);
-            console.log("✅ Protocol paused");
+            assert.equal((await fetchProtocol()).isPaused, true);
 
             await program.methods.resumeProtocol()
                 .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
                 .rpc();
-            const resumed = await program.account.protocol.fetch(protocolPDA);
-            assert.equal(resumed.isPaused, false);
-            console.log("✅ Protocol resumed");
+            assert.equal((await fetchProtocol()).isPaused, false);
+            console.log("✅ Pause / resume");
         });
 
-        it("updates reward rate", async () => {
-            const newRate = new BN(3_000);
-            await program.methods.updateRewardRate(newRate)
+        it("updates the reward rate", async () => {
+            await program.methods.updateRewardRate(new BN(2_000_000))
                 .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
                 .rpc();
-            const protocol = await program.account.protocol.fetch(protocolPDA);
-            assert.equal(protocol.rewardRate.toString(), newRate.toString());
-            console.log("✅ Reward rate updated:", protocol.rewardRate.toString());
+            assert.equal((await fetchProtocol()).rewardRate.toString(), "2000000");
+            console.log("✅ Reward rate updated");
         });
 
-        it("rejects admin action from non-authority", async () => {
+        it("rejects admin actions from a non-authority", async () => {
             const attacker = anchor.web3.Keypair.generate();
             await airdrop(attacker.publicKey);
             try {
@@ -741,6 +975,24 @@ describe("RouterPulse", () => {
             } catch (err: any) {
                 assert.ok(err);
                 console.log("✅ Non-authority admin rejected");
+            }
+        });
+
+        it("rejects a treasury burn from a non-authority", async () => {
+            const attacker = anchor.web3.Keypair.generate();
+            await airdrop(attacker.publicKey);
+            try {
+                await program.methods.burnTreasury(new BN(1))
+                    .accountsPartial({
+                        protocol: protocolPDA, rewardMint: rewardMintPDA, treasury: treasuryPDA,
+                        authority: attacker.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .signers([attacker])
+                    .rpc();
+                assert.fail("should reject");
+            } catch (err: any) {
+                assert.ok(err);
+                console.log("✅ Non-authority burn rejected");
             }
         });
     });

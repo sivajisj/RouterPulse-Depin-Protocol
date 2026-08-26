@@ -199,11 +199,11 @@ Press **Ctrl+C** to stop.
 ## Running Unit Tests (Pure Math — No Validator Needed)
 
 ```bash
-# runs #[cfg(test)] inside uptime.rs
+# runs #[cfg(test)] inside uptime.rs and math.rs
 cargo test -p routerpulse 2>&1 | grep -E "test |ok|FAILED"
 ```
 
-Expected: 12 tests passing
+Expected: 26 tests passing (live uptime scoring + tokenomics: performance tiers, emission decay, vesting)
 
 ---
 

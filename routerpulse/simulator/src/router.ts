@@ -1,6 +1,9 @@
 import * as anchor from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { currentEpochNumber, getRouterEpochPDA } from "./config";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+    currentEpochNumber, getRouterEpochPDA, getStakePDA, getVestingPDA, getEmissionPDA,
+} from "./config";
 // Imported directly (not via anchor.BN) — see tests/routerpulse.ts for why.
 import BN from "bn.js";
 
@@ -12,47 +15,54 @@ export interface RouterConfig {
 }
 
 /// Simulates one physical router. Owns two identities, on purpose:
-/// - `wallet`  — the operator's wallet. Registers the router and later
-///               claims rewards. Never touches the heartbeat path.
+/// - `wallet`  — the operator's wallet. Registers the router, stakes
+///               collateral, and later claims/vests rewards. Never
+///               touches the heartbeat path.
 /// - `device`  — a throwaway keypair standing in for the physical
 ///               device's onboard key. Only this key can sign
 ///               heartbeats, so a compromised device can never drain
 ///               the operator's wallet, and losing device access is
 ///               recoverable via rotateDeviceKey without re-registering.
 export class RouterSimulator {
-    private program:     any;
-    private wallet:      anchor.web3.Keypair;
-    private device:      anchor.web3.Keypair;
-    private config:      RouterConfig;
-    private routerPDA:   PublicKey;
-    private protocolPDA: PublicKey;
-    private protocol:    any;
-    private running:     boolean = false;
+    private program:      any;
+    private wallet:       anchor.web3.Keypair;
+    private device:       anchor.web3.Keypair;
+    private config:       RouterConfig;
+    private routerPDA:    PublicKey;
+    private stakePDA:     PublicKey;
+    private protocolPDA:  PublicKey;
+    private rewardMintPDA: PublicKey;
+    private stakeVaultPDA: PublicKey;
+    private ownerAta:      PublicKey;
+    private protocol:     any;
+    private running:      boolean = false;
     private heartbeatCount: number = 0;
     private missedCount:    number = 0;
     private lastFinalizedEpoch: BN | null = null;
 
     constructor(
-        program:     any,
-        wallet:      anchor.web3.Keypair,
-        config:      RouterConfig,
-        protocolPDA: PublicKey
+        program:      any,
+        wallet:       anchor.web3.Keypair,
+        config:       RouterConfig,
+        protocolPDA:  PublicKey,
+        rewardMintPDA: PublicKey,
+        stakeVaultPDA: PublicKey,
+        ownerAta:      PublicKey,
     ) {
-        this.program     = program;
-        this.wallet      = wallet;
-        this.device      = anchor.web3.Keypair.generate();
-        this.config      = config;
-        this.protocolPDA = protocolPDA;
+        this.program       = program;
+        this.wallet        = wallet;
+        this.device        = anchor.web3.Keypair.generate();
+        this.config        = config;
+        this.protocolPDA   = protocolPDA;
+        this.rewardMintPDA = rewardMintPDA;
+        this.stakeVaultPDA = stakeVaultPDA;
+        this.ownerAta      = ownerAta;
 
-        const [pda] = PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("router"),
-                wallet.publicKey.toBuffer(),
-                Buffer.from(config.routerId),
-            ],
+        this.routerPDA = PublicKey.findProgramAddressSync(
+            [Buffer.from("router"), wallet.publicKey.toBuffer(), Buffer.from(config.routerId)],
             program.programId
-        );
-        this.routerPDA = pda;
+        )[0];
+        this.stakePDA = getStakePDA(program.programId, this.routerPDA);
     }
 
     private async fundDevice(): Promise<void> {
@@ -61,40 +71,67 @@ export class RouterSimulator {
         await connection.confirmTransaction(sig);
     }
 
+    /// Registers (or re-attaches to) the router, then posts collateral
+    /// up to the protocol minimum. Staking is a real, structural gate —
+    /// heartbeat() rejects an uncollateralized router with
+    /// InsufficientStake — so this has to happen before the router can
+    /// ever go active.
     async register(): Promise<void> {
         const connection = (this.program.provider as anchor.AnchorProvider).connection;
-        const existing   = await connection.getAccountInfo(this.routerPDA);
+        const existing    = await connection.getAccountInfo(this.routerPDA);
 
         await this.fundDevice();
 
         if (existing) {
-            // Router already registered from a prior run — rotate onto
-            // this session's fresh device key so heartbeats succeed.
             await this.program.methods
                 .rotateDeviceKey(this.device.publicKey)
                 .accountsPartial({ router: this.routerPDA, owner: this.wallet.publicKey })
                 .rpc();
             console.log(`[${this.config.routerId}] already registered — rotated device key`);
+        } else {
+            await this.program.methods
+                .registerRouter(
+                    this.config.routerId,
+                    new BN(this.config.lat),
+                    new BN(this.config.long),
+                    this.device.publicKey
+                )
+                .accountsPartial({
+                    router:        this.routerPDA,
+                    protocol:      this.protocolPDA,
+                    owner:         this.wallet.publicKey,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .signers([this.wallet])
+                .rpc();
+            console.log(`[${this.config.routerId}] registered ✅ (device: ${this.device.publicKey.toBase58().slice(0, 8)}...)`);
+        }
+
+        await this.ensureStaked();
+    }
+
+    private async ensureStaked(): Promise<void> {
+        this.protocol = await this.program.account.protocol.fetch(this.protocolPDA);
+        const router  = await this.program.account.router.fetch(this.routerPDA);
+
+        const shortfall: anchor.BN = this.protocol.minStake.sub(router.stakedAmount);
+        if (shortfall.lten(0)) {
+            console.log(`[${this.config.routerId}] already collateralized (${router.stakedAmount.toString()} staked)`);
             return;
         }
 
         await this.program.methods
-            .registerRouter(
-                this.config.routerId,
-                new BN(this.config.lat),
-                new BN(this.config.long),
-                this.device.publicKey
-            )
+            .stake(shortfall)
             .accountsPartial({
-                router:        this.routerPDA,
-                protocol:      this.protocolPDA,
-                owner:         this.wallet.publicKey,
+                router: this.routerPDA, protocol: this.protocolPDA, stake: this.stakePDA,
+                rewardMint: this.rewardMintPDA, stakeVault: this.stakeVaultPDA,
+                ownerTokenAccount: this.ownerAta, owner: this.wallet.publicKey,
+                tokenProgram: TOKEN_PROGRAM_ID,
                 systemProgram: anchor.web3.SystemProgram.programId,
             })
             .signers([this.wallet])
             .rpc();
-
-        console.log(`[${this.config.routerId}] registered ✅ (device: ${this.device.publicKey.toBase58().slice(0, 8)}...)`);
+        console.log(`[${this.config.routerId}] staked ${shortfall.toString()} — now at protocol minimum`);
     }
 
     async sendHeartbeat(): Promise<boolean> {
@@ -128,7 +165,8 @@ export class RouterSimulator {
                 `[${this.config.routerId}] ✅ #${this.heartbeatCount}` +
                 ` | score: ${router.uptimeScore}` +
                 ` | status: ${JSON.stringify(router.status)}` +
-                ` | epoch: ${epochNumber.toString()}`
+                ` | epoch: ${epochNumber.toString()}` +
+                ` | staked: ${router.stakedAmount.toString()}`
             );
 
             await this.maybeSettlePreviousEpoch(epochNumber);
@@ -142,6 +180,9 @@ export class RouterSimulator {
                 console.log(`[${this.config.routerId}] ⏱ too soon — skipping`);
             } else if (err.message?.includes("ProtocolPaused")) {
                 console.log(`[${this.config.routerId}] ⏸ protocol paused — skipping`);
+            } else if (err.message?.includes("InsufficientStake")) {
+                console.log(`[${this.config.routerId}] 🪙 insufficient stake — topping up`);
+                await this.ensureStaked();
             } else {
                 console.log(`[${this.config.routerId}] error: ${err.message}`);
             }
@@ -150,11 +191,14 @@ export class RouterSimulator {
     }
 
     /// Best-effort crank: once the clock has moved into a new epoch,
-    /// finalize + claim the previous one so the demo shows the full
-    /// heartbeat -> epoch close -> reward lifecycle without a separate
-    /// operator step. Safe to call repeatedly — every failure mode here
-    /// (not ended, already finalized/claimed, no record) is expected
-    /// and just skipped.
+    /// finalize the previous one (locking in reward + slash together),
+    /// execute the slash if there is one, convert the reward into a
+    /// vesting entitlement, and mint whatever of it has already vested.
+    /// So running the simulator demonstrates the full on-chain lifecycle
+    /// live: heartbeat -> epoch close -> finalize -> [slash] -> claim ->
+    /// vest, with no separate operator step. Every failure mode here
+    /// (not ended yet, already finalized/claimed, nothing vested, no
+    /// record at all) is expected and just skipped.
     private async maybeSettlePreviousEpoch(currentEpoch: BN): Promise<void> {
         const previousEpoch = currentEpoch.subn(1);
         if (previousEpoch.isNeg()) return;
@@ -166,31 +210,75 @@ export class RouterSimulator {
         if (!exists) return; // no heartbeats were sent during that epoch
 
         try {
-            const routerEpoch = await this.program.account.routerEpoch.fetch(routerEpochPDA);
+            let routerEpoch = await this.program.account.routerEpoch.fetch(routerEpochPDA);
+
             if (!routerEpoch.finalized) {
                 await this.program.methods
                     .finalizeRouterEpoch(previousEpoch)
-                    .accountsPartial({ router: this.routerPDA, protocol: this.protocolPDA, routerEpoch: routerEpochPDA })
-                    .rpc();
-                console.log(`[${this.config.routerId}] 🔒 epoch ${previousEpoch.toString()} finalized`);
-            }
-            const settled = await this.program.account.routerEpoch.fetch(routerEpochPDA);
-            if (settled.finalized && !settled.claimed && settled.rewardAmount.gtn(0)) {
-                const [rewardVaultPDA] = PublicKey.findProgramAddressSync(
-                    [Buffer.from("reward_vault"), this.protocolPDA.toBuffer()],
-                    this.program.programId
-                );
-                await this.program.methods
-                    .claimReward(previousEpoch)
                     .accountsPartial({
                         router: this.routerPDA, protocol: this.protocolPDA, routerEpoch: routerEpochPDA,
-                        rewardVault: rewardVaultPDA, owner: this.wallet.publicKey,
+                        stake: this.stakePDA, emission: getEmissionPDA(this.program.programId, previousEpoch),
+                        cranker: this.wallet.publicKey,
                         systemProgram: anchor.web3.SystemProgram.programId,
                     })
                     .signers([this.wallet])
                     .rpc();
-                console.log(`[${this.config.routerId}] 💰 claimed epoch ${previousEpoch.toString()}: ${settled.rewardAmount.toString()} lamports`);
+                routerEpoch = await this.program.account.routerEpoch.fetch(routerEpochPDA);
+                console.log(
+                    `[${this.config.routerId}] 🔒 epoch ${previousEpoch.toString()} finalized` +
+                    ` | uptime_bps: ${routerEpoch.uptimeBps}` +
+                    ` | reward: ${routerEpoch.rewardAmount.toString()}` +
+                    ` | slash: ${routerEpoch.slashAmount.toString()}`
+                );
             }
+
+            if (routerEpoch.slashAmount.gtn(0) && !routerEpoch.slashed) {
+                const [treasuryPDA] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("treasury")], this.program.programId
+                );
+                await this.program.methods
+                    .slashRouter(previousEpoch)
+                    .accountsPartial({
+                        router: this.routerPDA, protocol: this.protocolPDA, routerEpoch: routerEpochPDA,
+                        stake: this.stakePDA, rewardMint: this.rewardMintPDA,
+                        stakeVault: this.stakeVaultPDA, treasury: treasuryPDA,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                    })
+                    .rpc();
+                console.log(`[${this.config.routerId}] ⚔️  slashed ${routerEpoch.slashAmount.toString()} for epoch ${previousEpoch.toString()}`);
+            }
+
+            const vestingPDA = getVestingPDA(this.program.programId, this.routerPDA, previousEpoch);
+            if (routerEpoch.rewardAmount.gtn(0) && !routerEpoch.claimed) {
+                await this.program.methods
+                    .claimReward(previousEpoch)
+                    .accountsPartial({
+                        router: this.routerPDA, protocol: this.protocolPDA, routerEpoch: routerEpochPDA,
+                        vesting: vestingPDA, owner: this.wallet.publicKey,
+                        systemProgram: anchor.web3.SystemProgram.programId,
+                    })
+                    .signers([this.wallet])
+                    .rpc();
+                console.log(`[${this.config.routerId}] 🎟️  epoch ${previousEpoch.toString()} reward granted to vesting`);
+            }
+
+            if (await connection.getAccountInfo(vestingPDA)) {
+                try {
+                    await this.program.methods
+                        .claimVested(previousEpoch)
+                        .accountsPartial({
+                            router: this.routerPDA, protocol: this.protocolPDA, vesting: vestingPDA,
+                            rewardMint: this.rewardMintPDA, beneficiaryTokenAccount: this.ownerAta,
+                            beneficiary: this.wallet.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
+                        })
+                        .signers([this.wallet])
+                        .rpc();
+                    console.log(`[${this.config.routerId}] 💰 vested tokens minted for epoch ${previousEpoch.toString()}`);
+                } catch (vestErr: any) {
+                    if (!vestErr.message?.includes("NothingVested")) throw vestErr;
+                }
+            }
+
             this.lastFinalizedEpoch = previousEpoch;
         } catch (err: any) {
             console.log(`[${this.config.routerId}] (epoch settlement skipped: ${err.message?.split("\n")[0]})`);

@@ -4,6 +4,7 @@ pub mod constants;
 pub mod errors;
 pub mod events;
 pub mod instructions;
+pub mod math;
 pub mod state;
 pub mod uptime;
 
@@ -17,14 +18,9 @@ pub mod routerpulse {
 
     pub fn initialize_protocol(
         ctx: Context<InitializeProtocol>,
-        reward_rate: u64,
-        penalty_bps: u16,
-        heartbeat_interval: i64,
-        epoch_duration: i64,
+        config: ProtocolConfig,
     ) -> Result<()> {
-        instructions::initialize_protocol::handler(
-            ctx, reward_rate, penalty_bps, heartbeat_interval, epoch_duration,
-        )
+        instructions::initialize_protocol::handler(ctx, config)
     }
 
     pub fn register_router(
@@ -49,6 +45,30 @@ pub mod routerpulse {
 
     pub fn claim_reward(ctx: Context<ClaimReward>, epoch_number: u64) -> Result<()> {
         instructions::claim_reward::handler(ctx, epoch_number)
+    }
+
+    pub fn claim_vested(ctx: Context<ClaimVested>, epoch_number: u64) -> Result<()> {
+        instructions::claim_vested::handler(ctx, epoch_number)
+    }
+
+    pub fn stake(ctx: Context<StakeCollateral>, amount: u64) -> Result<()> {
+        instructions::stake::handler(ctx, amount)
+    }
+
+    pub fn unstake(ctx: Context<Unstake>, amount: u64) -> Result<()> {
+        instructions::unstake::handler(ctx, amount)
+    }
+
+    pub fn slash_router(ctx: Context<SlashRouter>, epoch_number: u64) -> Result<()> {
+        instructions::slash_router::handler(ctx, epoch_number)
+    }
+
+    pub fn burn_treasury(ctx: Context<BurnTreasury>, amount: u64) -> Result<()> {
+        instructions::burn_treasury::handler(ctx, amount)
+    }
+
+    pub fn mint_genesis(ctx: Context<MintGenesis>, amount: u64) -> Result<()> {
+        instructions::mint_genesis::handler(ctx, amount)
     }
 
     pub fn rotate_device_key(ctx: Context<RotateDeviceKey>, new_device_pubkey: Pubkey) -> Result<()> {

@@ -47,20 +47,39 @@ export function currentEpochNumber(protocol: any, nowSec: number): BN {
     return new BN(Math.floor((nowSec - genesis) / duration));
 }
 
+function seedPda(programId: PublicKey, seeds: (Buffer | Uint8Array)[]): PublicKey {
+    return PublicKey.findProgramAddressSync(seeds, programId)[0];
+}
+
+const epochSeed = (epochNumber: BN) => epochNumber.toArrayLike(Buffer, "le", 8);
+
+export const getProtocolPDA   = (programId: PublicKey) => seedPda(programId, [Buffer.from("protocol")]);
+export const getRewardMintPDA = (programId: PublicKey) => seedPda(programId, [Buffer.from("reward_mint")]);
+export const getStakeVaultPDA = (programId: PublicKey) => seedPda(programId, [Buffer.from("stake_vault")]);
+export const getTreasuryPDA   = (programId: PublicKey) => seedPda(programId, [Buffer.from("treasury")]);
+
+export function getRouterPDA(programId: PublicKey, owner: PublicKey, routerId: string): PublicKey {
+    return seedPda(programId, [Buffer.from("router"), owner.toBuffer(), Buffer.from(routerId)]);
+}
+
+export function getStakePDA(programId: PublicKey, routerPDA: PublicKey): PublicKey {
+    return seedPda(programId, [Buffer.from("stake"), routerPDA.toBuffer()]);
+}
+
 export function getRouterEpochPDA(
     programId: PublicKey,
     routerPDA: PublicKey,
     epochNumber: BN
 ): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
-        [
-            Buffer.from("router_epoch"),
-            routerPDA.toBuffer(),
-            epochNumber.toArrayLike(Buffer, "le", 8),
-        ],
-        programId
-    );
-    return pda;
+    return seedPda(programId, [Buffer.from("router_epoch"), routerPDA.toBuffer(), epochSeed(epochNumber)]);
+}
+
+export function getVestingPDA(programId: PublicKey, routerPDA: PublicKey, epochNumber: BN): PublicKey {
+    return seedPda(programId, [Buffer.from("vesting"), routerPDA.toBuffer(), epochSeed(epochNumber)]);
+}
+
+export function getEmissionPDA(programId: PublicKey, epochNumber: BN): PublicKey {
+    return seedPda(programId, [Buffer.from("emission"), epochSeed(epochNumber)]);
 }
 
 export const PROGRAM_ID = new PublicKey(

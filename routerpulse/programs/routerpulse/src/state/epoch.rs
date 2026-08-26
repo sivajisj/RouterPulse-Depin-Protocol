@@ -31,9 +31,16 @@ pub struct RouterEpoch {
     /// Uptime for this epoch in basis points (0-10_000), fixed at
     /// finalization time.
     pub uptime_bps: u16,
-    /// Reward amount (lamports) locked in at finalization, paid out
-    /// verbatim on claim.
+    /// Reward token amount locked in at finalization, granted verbatim
+    /// on claim. Already has the performance-tier multiplier applied
+    /// and is capped by the epoch's remaining emission budget.
     pub reward_amount: u64,
+    /// Collateral to slash for this epoch's performance, fixed at
+    /// finalization from the same tier table as the reward.
+    pub slash_amount: u64,
+    /// Set once by `slash_router`, so one bad epoch can only ever be
+    /// slashed a single time.
+    pub slashed: bool,
     pub bump: u8,
 }
 

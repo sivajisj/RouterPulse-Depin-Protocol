@@ -1,8 +1,12 @@
-import { Connection } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import * as anchor    from "@coral-xyz/anchor";
-import { loadWallet, loadProgram, RPC_URL, HEARTBEAT_INTERVAL_MS } from "./config";
+import { getOrCreateAssociatedTokenAccount, getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import BN from "bn.js";
+import {
+    loadWallet, loadProgram, RPC_URL, HEARTBEAT_INTERVAL_MS,
+    getProtocolPDA, getRewardMintPDA, getStakeVaultPDA,
+} from "./config";
 import { RouterSimulator, RouterConfig } from "./router";
-import { PublicKey } from "@solana/web3.js";
 
 async function main() {
 
@@ -12,11 +16,9 @@ async function main() {
     const wallet     = loadWallet();
     const program    = loadProgram(wallet, connection);
 
-    // derive protocol PDA
-    const [protocolPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("protocol")],
-        program.programId
-    );
+    const protocolPDA   = getProtocolPDA(program.programId);
+    const rewardMintPDA = getRewardMintPDA(program.programId);
+    const stakeVaultPDA = getStakeVaultPDA(program.programId);
 
     // check protocol exists
     const protocol = await program.account.protocol.fetch(protocolPDA);
@@ -25,12 +27,23 @@ async function main() {
     console.log("   Total routers:  ", protocol.totalRouters.toString());
     console.log("   Is paused:      ", protocol.isPaused);
     console.log("   Epoch duration: ", protocol.epochDuration.toString(), "s");
+    console.log("   Min stake:      ", protocol.minStake.toString());
+    console.log("   Reward mint:    ", rewardMintPDA.toBase58());
     console.log("   Genesis time:   ", new Date(protocol.genesisTime.toNumber() * 1000).toISOString());
     console.log("");
     console.log("   Each router below signs heartbeats with its own throwaway");
-    console.log("   device key (never the operator wallet), and rewards are only");
-    console.log("   ever paid out for an epoch that has actually closed on-chain.");
+    console.log("   device key (never the operator wallet), must be collateralized");
+    console.log("   before it can go active, and rewards are only ever paid out —");
+    console.log("   as a vesting entitlement, not a lump sum — for an epoch that");
+    console.log("   has actually closed on-chain.");
     console.log("");
+
+    // the operator's own token account for the reward mint — used both
+    // as the source when staking and the destination when vested
+    // rewards are minted
+    const ownerAta = (await getOrCreateAssociatedTokenAccount(
+        connection, wallet, rewardMintPDA, wallet.publicKey
+    )).address;
 
     // define multiple routers with different failure rates
     const routerConfigs: RouterConfig[] = [
@@ -50,17 +63,46 @@ async function main() {
             routerId: "router-bangalore-001",
             lat:      12_971_600,   // Bangalore
             long:     77_594_600,
-            failRate: 0.60,         // 60% failure — bad router (will get suspended)
+            failRate: 0.60,         // 60% failure — bad router (will get suspended and slashed)
         },
     ];
 
+    // Every router below stakes from the same operator wallet, so make
+    // sure it holds enough to cover all of them. If the wallet is also
+    // the protocol authority (true for a freshly-initialized local
+    // validator), top it up from the fixed genesis allocation — that is
+    // the only mint path that doesn't require already having tokens.
+    const required = protocol.minStake.mul(new BN(routerConfigs.length + 1));
+    const balance  = (await getAccount(connection, ownerAta)).amount;
+    if (BigInt(required.toString()) > balance) {
+        const shortfall = required.sub(new BN(balance.toString()));
+        if (wallet.publicKey.equals(protocol.authority)) {
+            console.log(`💧 Topping up ${shortfall.toString()} reward tokens from the genesis allocation...`);
+            await program.methods.mintGenesis(shortfall)
+                .accountsPartial({
+                    protocol: protocolPDA, rewardMint: rewardMintPDA,
+                    recipientTokenAccount: ownerAta, authority: wallet.publicKey,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                })
+                .rpc();
+            console.log("");
+        } else {
+            console.log(
+                "⚠️  Wallet balance is below what's needed to stake every router " +
+                "below, and this wallet is not the protocol authority (no genesis " +
+                "mint available). Staking calls may fail — acquire reward tokens " +
+                "first.\n"
+            );
+        }
+    }
+
     // create simulator instances
     const simulators = routerConfigs.map(config =>
-        new RouterSimulator(program, wallet, config, protocolPDA)
+        new RouterSimulator(program, wallet, config, protocolPDA, rewardMintPDA, stakeVaultPDA, ownerAta)
     );
 
-    // register all routers
-    console.log("📋 Registering routers...\n");
+    // register + stake every router
+    console.log("📋 Registering & staking routers...\n");
     for (const sim of simulators) {
         await sim.register();
         await sleep(500);

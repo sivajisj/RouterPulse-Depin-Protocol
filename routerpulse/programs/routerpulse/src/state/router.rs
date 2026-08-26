@@ -67,6 +67,12 @@ pub struct Router {
     //track rewards were last claimed
     pub last_claim_time: i64,             // 8 bytes
 
+    /// Mirror of the router's `Stake.amount`, denormalized onto the
+    /// router so `heartbeat` can enforce the minimum-stake gate without
+    /// loading a second account on every single check-in. Kept in sync
+    /// by stake / unstake / slash — those are the only writers.
+    pub staked_amount: u64,               // 8 bytes
+
     /// Current operational status of this router
     pub status: RouterStatus,          // 1 byte
 

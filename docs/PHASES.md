@@ -50,13 +50,19 @@ The Solana/Anchor/BPF toolchain wasn't installed in the sandbox this phase was o
 
 ---
 
-## Phase 2 — Tokenomics (planned)
+## Phase 2 — Tokenomics ✅ (this session)
 
-- Replace the raw-SOL reward vault with an SPL (or Token-2022) reward mint.
-- Staking: operators stake collateral to activate a router; uptime-scaled reward multiplier; slashing on sustained bad uptime.
-- Vesting schedule for claimed rewards (cliff + linear).
-- Emission schedule (per-epoch pool split across router operators / treasury / community).
-- Security tests specific to CPI/token surfaces: wrong mint, wrong token authority, ATA substitution.
+Replaced the raw-SOL reward vault entirely with a real SPL token economy:
+
+- **Reward mint.** A new SPL mint, created as a PDA (`seeds = [reward_mint]`) at `initialize_protocol` time with the protocol PDA as its *only* mint authority and no freeze authority — no human key can ever issue or freeze reward tokens. Supply starts at zero: there is no pre-mine.
+- **Staking.** A `Stake` PDA per router (`seeds = [stake, router]`) backs a pooled, protocol-owned `stake_vault` token account. `stake`/`unstake` move real tokens via SPL CPI (owner-signed in, protocol-PDA-signed out via `invoke_signed`). `heartbeat`'s very first (activating) call now requires `router.staked_amount >= protocol.min_stake` — collateral is enforced structurally, not just by convention. `unstake` blocks an active router from dropping below the minimum; it must be decommissioned first.
+- **Uptime-tiered rewards *and* slashing from one table.** `math::performance_tier` (pure, exhaustively unit-tested) maps an epoch's `uptime_bps` to a reward multiplier and a slash percentage in the same lookup — reward decays gently from 100% down to 90%, then falls off a cliff below 70% (0 reward, 10% slashed). `finalize_router_epoch` locks in both `reward_amount` and `slash_amount` together; `slash_router` (separate, permissionless, since it moves tokens) executes the slash exactly once per epoch via CPI from `stake_vault` to `treasury`.
+- **Emission budget.** A lazily-created `EmissionSchedule` PDA per epoch number caps how much that epoch can ever pay out in total (`math::epoch_emission`, decaying geometrically per "year" of epochs). Every router's reward is clamped to whatever remains of the epoch's budget when it finalizes — extra routers dilute a fixed pool instead of inflating supply, which is what actually stops a Sybil-registration attack from being profitable.
+- **Vesting, not lump-sum minting.** `claim_reward` no longer moves any tokens — it converts a finalized epoch into a `RewardVesting` entitlement (cliff + linear, `math::vested_amount`). `claim_vested` is the *only* instruction in the whole program that mints, and it only ever mints the newly-vested delta for one specific entitlement. Total supply therefore only ever grows in lockstep with what has actually vested; there's no pool sitting anywhere that could be drained.
+- **The bootstrap problem, found by writing the tests, not by design review.** Staking requires already holding reward tokens; the only mint path was vesting; vesting requires having already earned and staked. Nobody could ever get the first token. Fixed with a `genesis_allocation` field on `Protocol`, fixed at `initialize_protocol` and enforced on-chain in a new `mint_genesis` instruction — authority-gated, but hard-capped, so the authority's total issuing power is bounded and auditable from day one rather than unlimited.
+- **Treasury burn.** `burn_treasury` (authority-gated) permanently destroys slashed collateral via SPL `burn` CPI, closing the loop: bad performance moves tokens to the treasury, burning makes that a real deflationary penalty instead of a transfer of value to whoever controls the treasury.
+- **A real BPF stack-frame bug, caught by the build, not by review.** `SlashRouter`'s account validation exceeded the BPF VM's hard 4096-byte stack-frame limit by 24 bytes once `Protocol` grew to hold all the new tokenomics config — the build printed `Error: ... Exceeding the maximum stack offset may cause undefined behavior` and *still emitted a `.so`*, which is the trap: it would have shipped a program that could misbehave at runtime on that one instruction. Fixed by boxing `Protocol` (`Box<Account<'info, Protocol>>`) in that one Accounts struct to move it off the stack.
+- **Tests.** 12 new pure-math unit tests (tier boundaries, bps rounding direction, emission decay, vesting cliff/linear/saturation — including one that caught a real `u64` overflow in the naive `apply_bps` implementation before it ever touched a validator) plus a full integration suite: genesis-cap enforcement, collateral gating on activation, real token-balance deltas on stake/unstake, the whole epoch → finalize → claim → vest → fully-vested lifecycle, a second router deliberately run at 50% uptime to prove the bottom tier actually pays nothing and actually gets slashed, slash execution with balance assertions, double-slash rejection, and a treasury burn that reconciles against on-chain mint supply. **38/38 passing** against a real local validator.
 
 ## Phase 3 — Indexer (planned)
 

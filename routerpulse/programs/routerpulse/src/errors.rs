@@ -97,4 +97,55 @@ pub enum RouterPulseError {
 
     #[msg("New device key must differ from the current one")]
     DeviceKeyUnchanged,
+
+    // staking
+    #[msg("Stake amount must be greater than zero")]
+    InvalidStakeAmount,
+
+    #[msg("Router has not staked the protocol minimum")]
+    InsufficientStake,
+
+    #[msg("Staked collateral is still within its lock period")]
+    StakeLocked,
+
+    #[msg("Cannot unstake more than is currently staked")]
+    UnstakeExceedsStake,
+
+    #[msg("Unstaking would drop an active router below the minimum stake")]
+    UnstakeBelowMinimum,
+
+    #[msg("This epoch has already been slashed")]
+    EpochAlreadySlashed,
+
+    #[msg("This epoch's performance does not warrant a slash")]
+    NothingToSlash,
+
+    #[msg("Stake account does not belong to the given router")]
+    StakeRouterMismatch,
+
+    // emissions / vesting
+    #[msg("Epoch emission budget is exhausted")]
+    EmissionExhausted,
+
+    #[msg("Emission decay must be between 1 and 10000 basis points")]
+    InvalidEmissionDecay,
+
+    #[msg("Vesting duration must be at least the cliff duration")]
+    InvalidVestingSchedule,
+
+    #[msg("No tokens have vested yet")]
+    NothingVested,
+
+    #[msg("Vesting record does not belong to the given router")]
+    VestingRouterMismatch,
+
+    // token
+    #[msg("Token mint does not match the protocol reward mint")]
+    InvalidRewardMint,
+
+    #[msg("Burn amount must be greater than zero")]
+    InvalidBurnAmount,
+
+    #[msg("Genesis allocation is exhausted")]
+    GenesisAllocationExhausted,
 }

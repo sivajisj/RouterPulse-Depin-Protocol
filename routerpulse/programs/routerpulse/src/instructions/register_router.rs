@@ -60,6 +60,7 @@ pub fn handler(
     router.heartbeat_count = 0;
     router.missed_heartbeats = 0;
     router.last_claim_time = 0;
+    router.staked_amount = 0;
     router.bump = ctx.bumps.router;
     protocol.total_routers = protocol.total_routers.checked_add(1).ok_or(RouterPulseError::Overflow)?;
     emit!(RouterRegistered {

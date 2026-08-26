@@ -25,6 +25,7 @@ pub fn handler(ctx: Context<Heartbeat>, epoch_number: u64) -> Result<()> {
 
     let heartbeat_interval        = protocol.heartbeat_interval;
     let epoch_duration            = protocol.epoch_duration;
+    let min_stake                 = protocol.min_stake;
     let (epoch_start, epoch_end)  = protocol.epoch_bounds(epoch_number);
 
     // ── live scoring — drives suspension, independent of reward accounting ──
@@ -38,6 +39,13 @@ pub fn handler(ctx: Context<Heartbeat>, epoch_number: u64) -> Result<()> {
         require!(
             router.status != RouterStatus::Decommissioned,
             RouterPulseError::RouterDecommissioned
+        );
+        // Collateral gate. Checked against the denormalized mirror on
+        // the router rather than loading the Stake account, since this
+        // runs on every single heartbeat.
+        require!(
+            router.staked_amount >= min_stake,
+            RouterPulseError::InsufficientStake
         );
 
         if router.heartbeat_count == 0 {
