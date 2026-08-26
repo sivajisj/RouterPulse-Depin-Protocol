@@ -99,9 +99,17 @@ New standalone NestJS service, `api/` — REST + WebSocket over the indexer's Mo
 
 - ClickHouse for event-level analytics (uptime by region, reward distribution, staking TVL) separate from MongoDB's operational projection.
 
-## Phase 6 — Enterprise Next.js Dashboard (planned)
+## Phase 6 — Enterprise Next.js Dashboard ✅ (this session)
 
-- Wallet-connected operator dashboard: router explorer + detail, staking, rewards, live map (MapLibre), on-chain explorer, admin panel.
+New `web/` app — Next.js 14 App Router over the Phase 4 API. Details in [web/README.md](../web/README.md).
+
+- **Server Components by default, client JS only where it's earned.** Every page fetches server-side and ships HTML; the only meaningful Client Component is the live event feed, because it's the only thing that genuinely needs a persistent connection. The build output makes this concrete: the dashboard route is ~13.6 kB of JS (the Socket.IO client) while `/routers`, `/analytics`, `/explorer` and `/routers/[pda]` are ~180 B each. Marking the tree `"use client"` would have shipped Socket.IO to every route for nothing.
+- **Pages**: network overview (fleet stats, supply/burn/slash totals, router map, live feed), filterable router table with uptime meters, per-router detail showing owner-vs-device identity and the full per-epoch reward/slash breakdown, analytics (fleet composition, regional grouping, recent finalized epochs), and a raw decoded event explorer filterable by event type.
+- **The live feed is seeded server-side** with recent events so it paints populated instead of sitting empty until something happens on-chain, and de-dupes on event id since a socket reconnect can redeliver.
+- **Token amounts never touch `Number`.** They're 9-decimal base-unit strings that routinely exceed `Number.MAX_SAFE_INTEGER`; formatting goes through `BigInt` only. A `parseFloat` here would silently corrupt exactly the values this project treats as money.
+- **The map is hand-rolled** (equirectangular projection of the fixed-point lat/long already on each router) rather than MapLibre — no tile provider, no API key, no network call, so the dashboard works fully offline.
+- **Verified end to end, against the real running stack**: production build clean, all five routes returning 200 with genuinely indexed data (4 real routers, real token totals, real decoded event names — not empty shells), unknown router PDA correctly 404ing. Then the full chain live: ran the simulator against the validator with indexer + API + web all up and a Socket.IO client attached — **15 real events streamed through** (including `RouterSlashed`), and the dashboard's heartbeat counter moved 33 → 39 from actual on-chain activity.
+- **Honest gap**: no wallet adapter yet. The API's Sign-In-With-Solana flow is built and tested, but this dashboard is read-only and doesn't connect a wallet, so the authenticated admin view isn't wired up here. That's the clear next step for this app.
 
 ## Phase 7 — DEX Integration (planned)
 
