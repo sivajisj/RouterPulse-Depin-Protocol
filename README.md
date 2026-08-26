@@ -4,6 +4,8 @@ A trustless Wi-Fi router uptime tracking and reward distribution protocol built 
 
 Inspired by the real infrastructure problem that Wi-Fi networks like Wifi Dabba are solving , operators currently self-report uptime with no way to verify it. RouterPulse replaces that with cryptographic proof stored on-chain.
 
+This repository has two parts today: the Anchor program + simulator + tests (`routerpulse/`, documented below), and an event-driven indexer (`indexer/`) that turns on-chain activity into queryable MongoDB collections — see [indexer/README.md](indexer/README.md). See [docs/PHASES.md](docs/PHASES.md) for the full roadmap and what's planned next (backend API, analytics, dashboard).
+
 ---
 
 ## How It Works

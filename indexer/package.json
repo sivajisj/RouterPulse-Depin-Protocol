@@ -1,0 +1,24 @@
+{
+  "name": "routerpulse-indexer",
+  "version": "1.0.0",
+  "description": "Event-driven Solana indexer for RouterPulse: decodes on-chain program events into MongoDB operational + audit collections.",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "backfill": "ts-node src/backfill.ts",
+    "reconcile": "ts-node src/reconcile.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.95.0",
+    "bn.js": "^5.2.0",
+    "dotenv": "^16.0.0",
+    "mongodb": "^6.10.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.0",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}
