@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+pub mod constants;
 pub mod errors;
 pub mod events;
 pub mod instructions;
@@ -19,9 +20,10 @@ pub mod routerpulse {
         reward_rate: u64,
         penalty_bps: u16,
         heartbeat_interval: i64,
+        epoch_duration: i64,
     ) -> Result<()> {
         instructions::initialize_protocol::handler(
-            ctx, reward_rate, penalty_bps, heartbeat_interval,
+            ctx, reward_rate, penalty_bps, heartbeat_interval, epoch_duration,
         )
     }
 
@@ -30,18 +32,27 @@ pub mod routerpulse {
         router_id: String,
         location_lat: i64,
         location_long: i64,
+        device_pubkey: Pubkey,
     ) -> Result<()> {
         instructions::register_router::handler(
-            ctx, router_id, location_lat, location_long,
+            ctx, router_id, location_lat, location_long, device_pubkey,
         )
     }
 
-    pub fn heartbeat(ctx: Context<Heartbeat>) -> Result<()> {
-        instructions::heartbeat::handler(ctx)
+    pub fn heartbeat(ctx: Context<Heartbeat>, epoch_number: u64) -> Result<()> {
+        instructions::heartbeat::handler(ctx, epoch_number)
     }
 
-    pub fn claim_reward(ctx: Context<ClaimReward>) -> Result<()> {
-        instructions::claim_reward::handler(ctx)
+    pub fn finalize_router_epoch(ctx: Context<FinalizeRouterEpoch>, epoch_number: u64) -> Result<()> {
+        instructions::finalize_router_epoch::handler(ctx, epoch_number)
+    }
+
+    pub fn claim_reward(ctx: Context<ClaimReward>, epoch_number: u64) -> Result<()> {
+        instructions::claim_reward::handler(ctx, epoch_number)
+    }
+
+    pub fn rotate_device_key(ctx: Context<RotateDeviceKey>, new_device_pubkey: Pubkey) -> Result<()> {
+        instructions::rotate_device_key::handler(ctx, new_device_pubkey)
     }
 
     pub fn apply_penalty(ctx: Context<ApplyPenalty>) -> Result<()> {

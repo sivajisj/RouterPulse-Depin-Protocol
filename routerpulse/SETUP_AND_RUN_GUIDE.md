@@ -51,20 +51,23 @@ npm install -g yarn
 ```
 routerpulse/
 ├── programs/routerpulse/src/
-│   ├── lib.rs                      entry point — all instructions wired here
-│   ├── uptime.rs                   pure math module — score calculation
-│   ├── errors.rs                   all 21 custom error codes
-│   ├── events.rs                   on-chain event definitions
+│   ├── lib.rs                        entry point — all instructions wired here
+│   ├── uptime.rs                     pure math module — live score calculation
+│   ├── errors.rs                     custom error codes
+│   ├── constants.rs                  shared numeric constants
 │   ├── state/
-│   │   ├── protocol.rs             global singleton PDA
-│   │   └── router.rs               per-router PDA + RouterStatus enum
+│   │   ├── protocol.rs               global singleton PDA (epoch clock lives here)
+│   │   ├── router.rs                 per-router PDA + RouterStatus enum + device identity
+│   │   └── epoch.rs                  per-router-per-epoch reward record
 │   └── instructions/
-│       ├── initialize_protocol.rs  bootstrap the protocol
-│       ├── register_router.rs      onboard a physical router
-│       ├── heartbeat.rs            router check-in every N seconds
-│       ├── claim_reward.rs         operator collects earnings
-│       ├── apply_penalty.rs        admin penalizes bad router
-│       └── admin.rs                pause/resume/reinstate/decommission
+│       ├── initialize_protocol.rs    bootstrap the protocol
+│       ├── register_router.rs        onboard a physical router + its device key
+│       ├── heartbeat.rs              device check-in every N seconds
+│       ├── finalize_router_epoch.rs  permissionless: close a finished epoch
+│       ├── claim_reward.rs           operator collects one epoch's reward
+│       ├── rotate_device_key.rs      owner recovers a lost/compromised device
+│       ├── apply_penalty.rs          admin penalizes bad router
+│       └── admin.rs                  pause/resume/reinstate/decommission
 ├── simulator/
 │   └── src/
 │       ├── index.ts                main entry — spawns all routers
@@ -137,14 +140,15 @@ solana balance
 # build the Rust program
 anchor build
 
-# run all 20 tests
+# run the full integration suite
 anchor test --skip-local-validator
 ```
 
-Expected:
-```
-20 passing
-```
+The suite now includes an epoch-reward lifecycle test that waits for a
+real ~2-minute epoch window to close (rewards are only ever paid out
+for an epoch that has actually ended on-chain — see
+[docs/protocol.md](../docs/protocol.md)), so a full run takes a few
+minutes rather than a few seconds. Everything else runs immediately.
 
 ---
 
@@ -287,3 +291,7 @@ export HOME=/path/to/your/keypair/folder
 | `HeartbeatTooSoon` | Heartbeat sent twice in same block | Wait 1+ seconds between heartbeats |
 | `RouterSuspended` | Score dropped below threshold | Admin must reinstate router |
 | `InsufficientVaultBalance` | Vault is empty | Fund vault with SOL transfer |
+| `InvalidDeviceSigner` | Heartbeat signed by owner instead of device key | Sign with `router.devicePubkey`, or `rotateDeviceKey` first |
+| `WrongEpochNumber` | Client's epoch math is stale | Recompute from `protocol.genesisTime`/`epochDuration` right before sending |
+| `EpochNotEnded` | Tried to finalize too early | Wait until `now >= router_epoch.end_time` |
+| `EpochNotFinalized` / `EpochAlreadyClaimed` | Claimed before finalizing, or claimed twice | Finalize first; each epoch pays out exactly once |

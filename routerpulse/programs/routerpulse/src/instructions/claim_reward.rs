@@ -1,51 +1,43 @@
 use anchor_lang::prelude::*;
-use crate::state::{Protocol, Router, RouterStatus};
+use crate::state::{Protocol, Router, RouterStatus, RouterEpoch};
 use crate::errors::RouterPulseError;
-use crate::uptime;
 
-pub fn handler(ctx: Context<ClaimReward>) -> Result<()> {
+/// Pays out the reward locked in by `finalize_router_epoch` for one
+/// specific, already-closed epoch. Reward comes exclusively from
+/// `router_epoch.reward_amount` — never recomputed from lifetime
+/// counters — and `router_epoch.claimed` makes double-claiming the
+/// same epoch impossible.
+pub fn handler(ctx: Context<ClaimReward>, _epoch_number: u64) -> Result<()> {
 
-    let now    = Clock::get()?.unix_timestamp;
-    let router = &mut ctx.accounts.router;
+    let now = Clock::get()?.unix_timestamp;
 
+    require!(!ctx.accounts.protocol.is_paused, RouterPulseError::ProtocolPaused);
     require!(
-        router.status == RouterStatus::Active,
-        RouterPulseError::RouterNotActive
+        ctx.accounts.router.status != RouterStatus::Decommissioned,
+        RouterPulseError::RouterDecommissioned
     );
 
-    require!(
-        router.heartbeat_count > 0,
-        RouterPulseError::NoHeartbeatYet
-    );
+    let reward_amount;
+    let epoch_number;
+    let uptime_bps;
+    {
+        let router_epoch = &mut ctx.accounts.router_epoch;
 
-    let claim_start = if router.last_claim_time == 0 {
-        router.registered_at
-    } else {
-        router.last_claim_time
-    };
+        require!(
+            router_epoch.router == ctx.accounts.router.key(),
+            RouterPulseError::EpochRouterMismatch
+        );
+        require!(router_epoch.finalized, RouterPulseError::EpochNotFinalized);
+        require!(!router_epoch.claimed, RouterPulseError::EpochAlreadyClaimed);
 
-    let elapsed = now
-        .checked_sub(claim_start)
-        .ok_or(RouterPulseError::InvalidTimestamp)?;
+        reward_amount = router_epoch.reward_amount;
+        require!(reward_amount > 0, RouterPulseError::NothingToClaim);
 
-    require!(elapsed > 0, RouterPulseError::NothingToClaim);
-
-    let uptime_pct = uptime::uptime_percentage(
-        router.heartbeat_count,
-        router.missed_heartbeats,
-    );
-
-    let base_reward = (elapsed as u64)
-        .checked_mul(ctx.accounts.protocol.reward_rate)
-        .ok_or(RouterPulseError::Overflow)?;
-
-    let reward_amount = base_reward
-        .checked_mul(uptime_pct)
-        .ok_or(RouterPulseError::Overflow)?
-        .checked_div(100)
-        .ok_or(RouterPulseError::Overflow)?;
-
-    require!(reward_amount > 0, RouterPulseError::NothingToClaim);
+        // Mark claimed before the CPI transfer (checks-effects-interactions).
+        router_epoch.claimed = true;
+        epoch_number = router_epoch.epoch_number;
+        uptime_bps    = router_epoch.uptime_bps;
+    }
 
     let vault_balance = ctx.accounts.reward_vault.lamports();
     require!(
@@ -77,10 +69,10 @@ pub fn handler(ctx: Context<ClaimReward>) -> Result<()> {
     )?;
 
     // update router
-    router.total_rewards = router.total_rewards
+    ctx.accounts.router.total_rewards = ctx.accounts.router.total_rewards
         .checked_add(reward_amount)
         .ok_or(RouterPulseError::Overflow)?;
-    router.last_claim_time = now;
+    ctx.accounts.router.last_claim_time = now;
 
     // update protocol stats
     ctx.accounts.protocol.total_rewards_distributed =
@@ -89,25 +81,27 @@ pub fn handler(ctx: Context<ClaimReward>) -> Result<()> {
             .ok_or(RouterPulseError::Overflow)?;
 
     emit!(RewardClaimed {
-        router_id:  router.router_id.clone(),
-        owner:      router.owner,
-        amount:     reward_amount,
-        uptime_pct,
-        elapsed:    elapsed as u64,
-        timestamp:  now,
+        router_id:    ctx.accounts.router.router_id.clone(),
+        owner:        ctx.accounts.router.owner,
+        epoch_number,
+        amount:       reward_amount,
+        uptime_bps,
+        timestamp:    now,
     });
 
     msg!(
-        "Reward: {} lamports for {}. Uptime: {}%",
+        "Reward: {} lamports for {} (epoch {}). Uptime: {} bps",
         reward_amount,
-        router.router_id,
-        uptime_pct
+        ctx.accounts.router.router_id,
+        epoch_number,
+        uptime_bps
     );
 
     Ok(())
 }
 
 #[derive(Accounts)]
+#[instruction(epoch_number: u64)]
 pub struct ClaimReward<'info> {
     #[account(
         mut,
@@ -123,6 +117,13 @@ pub struct ClaimReward<'info> {
         bump  = protocol.bump,
     )]
     pub protocol: Account<'info, Protocol>,
+
+    #[account(
+        mut,
+        seeds = [RouterEpoch::SEED, router.key().as_ref(), &epoch_number.to_le_bytes()],
+        bump  = router_epoch.bump,
+    )]
+    pub router_epoch: Account<'info, RouterEpoch>,
 
     /// CHECK: PDA vault holding SOL for rewards
     #[account(
@@ -140,10 +141,10 @@ pub struct ClaimReward<'info> {
 
 #[event]
 pub struct RewardClaimed {
-    pub router_id:  String,
-    pub owner:      Pubkey,
-    pub amount:     u64,
-    pub uptime_pct: u64,
-    pub elapsed:    u64,
-    pub timestamp:  i64,
+    pub router_id:    String,
+    pub owner:        Pubkey,
+    pub epoch_number: u64,
+    pub amount:       u64,
+    pub uptime_bps:   u16,
+    pub timestamp:    i64,
 }

@@ -24,6 +24,12 @@ async function main() {
     console.log("   Reward rate:    ", protocol.rewardRate.toString());
     console.log("   Total routers:  ", protocol.totalRouters.toString());
     console.log("   Is paused:      ", protocol.isPaused);
+    console.log("   Epoch duration: ", protocol.epochDuration.toString(), "s");
+    console.log("   Genesis time:   ", new Date(protocol.genesisTime.toNumber() * 1000).toISOString());
+    console.log("");
+    console.log("   Each router below signs heartbeats with its own throwaway");
+    console.log("   device key (never the operator wallet), and rewards are only");
+    console.log("   ever paid out for an epoch that has actually closed on-chain.");
     console.log("");
 
     // define multiple routers with different failure rates

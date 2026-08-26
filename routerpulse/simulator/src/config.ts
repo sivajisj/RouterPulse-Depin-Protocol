@@ -35,6 +35,32 @@ export function loadProgram(
     return new anchor.Program(idl, provider);
 }
 
+// Mirrors Protocol::epoch_number_at on-chain. Client and program must
+// always agree on which epoch is "current", since heartbeat() rejects
+// any epoch_number that doesn't match the on-chain clock.
+export function currentEpochNumber(protocol: any, nowSec: number): anchor.BN {
+    const genesis  = protocol.genesisTime.toNumber();
+    const duration = protocol.epochDuration.toNumber();
+    if (nowSec <= genesis || duration <= 0) return new anchor.BN(0);
+    return new anchor.BN(Math.floor((nowSec - genesis) / duration));
+}
+
+export function getRouterEpochPDA(
+    programId: PublicKey,
+    routerPDA: PublicKey,
+    epochNumber: anchor.BN
+): PublicKey {
+    const [pda] = PublicKey.findProgramAddressSync(
+        [
+            Buffer.from("router_epoch"),
+            routerPDA.toBuffer(),
+            epochNumber.toArrayLike(Buffer, "le", 8),
+        ],
+        programId
+    );
+    return pda;
+}
+
 export const PROGRAM_ID = new PublicKey(
     "BD41MBys55QSTYgsL3S5RmkSu19PVqtfTje3XhZgnbtD"
 );

@@ -1,17 +1,23 @@
 use anchor_lang::prelude::*;
 use crate::state::Protocol;
 use crate::errors::RouterPulseError;
+use crate::constants::MIN_HEARTBEATS_PER_EPOCH;
 
 pub fn handler(
     ctx: Context<InitializeProtocol>,
     reward_rate: u64,
     penalty_bps: u16,
     heartbeat_interval: i64,
+    epoch_duration: i64,
 ) -> Result<()> {
 
     require!(reward_rate > 0,          RouterPulseError::InvalidRewardRate);
     require!(penalty_bps <= 10_000,    RouterPulseError::InvalidPenaltyBps);
     require!(heartbeat_interval >= 60, RouterPulseError::InvalidHeartbeatInterval);
+    require!(
+        epoch_duration >= heartbeat_interval.saturating_mul(MIN_HEARTBEATS_PER_EPOCH),
+        RouterPulseError::InvalidEpochDuration
+    );
 
     // compute vault bump without creating the account
     // vault is funded separately via direct SOL transfer
@@ -20,12 +26,15 @@ pub fn handler(
         ctx.program_id,
     );
 
+    let now = Clock::get()?.unix_timestamp;
     let protocol = &mut ctx.accounts.protocol;
 
     protocol.authority                 = ctx.accounts.authority.key();
     protocol.reward_rate               = reward_rate;
     protocol.penalty_bps               = penalty_bps;
     protocol.heartbeat_interval        = heartbeat_interval;
+    protocol.epoch_duration            = epoch_duration;
+    protocol.genesis_time              = now;
     protocol.total_routers             = 0;
     protocol.total_rewards_distributed = 0;
     protocol.is_paused                 = false;
@@ -37,13 +46,16 @@ pub fn handler(
         reward_rate:        protocol.reward_rate,
         penalty_bps:        protocol.penalty_bps,
         heartbeat_interval: protocol.heartbeat_interval,
-        timestamp:          Clock::get()?.unix_timestamp,
+        epoch_duration:     protocol.epoch_duration,
+        genesis_time:       protocol.genesis_time,
+        timestamp:          now,
     });
 
     msg!(
-        "RouterPulse initialized. Authority: {}, Reward rate: {}",
+        "RouterPulse initialized. Authority: {}, Reward rate: {}, Epoch duration: {}s",
         protocol.authority,
-        protocol.reward_rate
+        protocol.reward_rate,
+        protocol.epoch_duration,
     );
 
     Ok(())
@@ -72,5 +84,7 @@ pub struct ProtocolInitialized {
     pub reward_rate:        u64,
     pub penalty_bps:        u16,
     pub heartbeat_interval: i64,
+    pub epoch_duration:     i64,
+    pub genesis_time:       i64,
     pub timestamp:          i64,
 }

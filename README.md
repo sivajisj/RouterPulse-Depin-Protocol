@@ -8,17 +8,32 @@ Inspired by the real infrastructure problem that Wi-Fi networks like Wifi Dabba 
 
 ## How It Works
 
-Every router sends a signed heartbeat transaction every few seconds. The program records that timestamp permanently on Solana. Nobody can fake it or change it after the fact. Rewards are calculated automatically based on verified uptime , no trust required between the operator and the network.
+Every router's **device key** — not the operator's wallet — sends a signed heartbeat transaction every few seconds. The program records that timestamp permanently on Solana. Nobody can fake it or change it after the fact.
+
+Two independent systems consume that heartbeat:
 
 ```
-Router sends heartbeat
+Router device signs heartbeat
       ↓
-Solana program records timestamp in PDA
-      ↓
-Uptime score updated (on time +1, late -10)
-      ↓
-Operator claims rewards based on verified uptime
+Solana program records it in the Router PDA
+      ↓                                   ↓
+Live uptime score                  RouterEpoch PDA for the
+(+1 on time, -10 late,             CURRENT epoch gets its
+drives auto-suspension)            heartbeat counter incremented
+      ↓                                   ↓
+Router auto-suspended         Once the epoch's time window
+if score <= 20                passes, anyone can call
+                               finalize_router_epoch, which
+                               locks in uptime% and reward from
+                               heartbeats actually seen that epoch
+                                   ↓
+                          Operator claims that epoch's reward —
+                          exactly once, from an immutable record
 ```
+
+Rewards are never computed from a lifetime average that can go stale while a router is silently offline — see [docs/protocol.md](docs/protocol.md) for why that matters and how the epoch design closes it.
+
+Device identity is deliberately separate from the operator wallet: `register_router` takes a `device_pubkey`, `heartbeat` requires that key to sign (not the owner), and `rotate_device_key` (owner-signed) recovers a lost or compromised device without re-registering the router.
 
 ---
 
@@ -38,30 +53,36 @@ Operator claims rewards based on verified uptime
 ```
 routerpulse/
 ├── programs/routerpulse/src/
-│   ├── lib.rs                      all instructions wired here
-│   ├── uptime.rs                   score calculation (pure math)
-│   ├── errors.rs                   custom error codes
+│   ├── lib.rs                        all instructions wired here
+│   ├── uptime.rs                     live score calculation (pure math)
+│   ├── errors.rs                     custom error codes
+│   ├── constants.rs                  shared numeric constants
 │   ├── state/
-│   │   ├── protocol.rs             global config PDA
-│   │   └── router.rs               per-router PDA
+│   │   ├── protocol.rs               global config PDA (epoch clock lives here)
+│   │   ├── router.rs                 per-router PDA (owner + device identity)
+│   │   └── epoch.rs                  per-router-per-epoch reward record
 │   └── instructions/
-│       ├── initialize_protocol.rs  bootstrap the protocol
-│       ├── register_router.rs      onboard a router device
-│       ├── heartbeat.rs            router proves it is online
-│       ├── claim_reward.rs         operator collects rewards
-│       ├── apply_penalty.rs        admin penalizes bad router
-│       └── admin.rs                pause, reinstate, decommission
+│       ├── initialize_protocol.rs    bootstrap the protocol
+│       ├── register_router.rs        onboard a router + its device key
+│       ├── heartbeat.rs              device proves router is online
+│       ├── finalize_router_epoch.rs  permissionless: close a finished epoch
+│       ├── claim_reward.rs           operator collects one epoch's reward
+│       ├── rotate_device_key.rs      owner recovers a lost/compromised device
+│       ├── apply_penalty.rs          admin penalizes bad router
+│       └── admin.rs                  pause, reinstate, decommission
 ├── simulator/
 │   └── src/
-│       ├── index.ts                spawns all routers
-│       ├── router.ts               RouterSimulator class
-│       └── config.ts               wallet and program loader
+│       ├── index.ts                  spawns all routers
+│       ├── router.ts                 RouterSimulator class (owner + device identity)
+│       └── config.ts                 wallet, program, epoch-number helpers
 ├── tests/
-│   └── routerpulse.ts              integration tests
+│   └── routerpulse.ts                integration tests incl. attack scenarios
 └── scripts/
-    ├── deploy.sh                   devnet deployment
-    └── demo.sh                     demo script
+    ├── deploy.sh                     devnet deployment
+    └── demo.sh                       demo script
 ```
+
+See [docs/PHASES.md](docs/PHASES.md) for the full production roadmap (this repo started life as a hackathon-style prototype and is being hardened phase by phase) and [docs/protocol.md](docs/protocol.md) for the on-chain design rationale.
 
 ---
 
@@ -189,7 +210,7 @@ Auto-suspension happens on-chain when the score reaches 20. No manual step neede
 
 ---
 
-## Uptime Score
+## Uptime Score (live, drives suspension only)
 
 ```
 On time heartbeat  →  score + 1  (max 100)
@@ -197,12 +218,16 @@ Late heartbeat     →  score - 10 (min 0)
 Score hits 20      →  router auto-suspended
 ```
 
-## Reward Formula
+## Epoch Reward Formula (drives payouts)
 
 ```
-uptime %  =  (heartbeats sent - missed) × 100 / total heartbeats
-reward    =  elapsed seconds × reward rate × uptime % / 100
+epoch_number        =  (now - genesis_time) / epoch_duration            [same on client and program]
+expected_heartbeats =  epoch_duration / heartbeat_interval
+uptime_bps          =  min(heartbeats_in_epoch, expected_heartbeats) × 10000 / expected_heartbeats
+reward               =  epoch_duration × reward_rate × uptime_bps / 10000
 ```
+
+`heartbeats_in_epoch` only ever counts heartbeats that actually landed inside that epoch's `[start_time, end_time)` window, recorded on a dedicated `RouterEpoch` PDA. A router that goes silent simply never accrues a record — and therefore never a reward — for the epochs it missed, instead of coasting on a stale lifetime average. `finalize_router_epoch` locks the numbers in once the window closes (anyone can call it — it's a pure function of already-public on-chain state); `claim_reward` then pays out that exact, immutable amount exactly once.
 
 ---
 
@@ -216,6 +241,10 @@ reward    =  elapsed seconds × reward rate × uptime % / 100
 | `HeartbeatTooSoon` | Wait 1 second between heartbeats |
 | `RouterSuspended` | Admin must call reinstate_router |
 | `InsufficientVaultBalance` | Fund the vault with SOL |
+| `InvalidDeviceSigner` | Heartbeat must be signed by `router.device_pubkey`, not the owner wallet |
+| `WrongEpochNumber` | Recompute epoch_number from `protocol.genesisTime`/`epochDuration` right before sending |
+| `EpochNotEnded` | `finalize_router_epoch` can't run until `now >= router_epoch.end_time` |
+| `EpochNotFinalized` / `EpochAlreadyClaimed` | Finalize before claiming; each epoch can only be claimed once |
 
 ---
 

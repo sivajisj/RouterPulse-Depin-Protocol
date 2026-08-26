@@ -1,15 +1,21 @@
 use anchor_lang::prelude::*;
 
-use crate::state::{Protocol, Router, RouterStatus};
+use crate::state::{Protocol, Router};
 use crate::errors::RouterPulseError;
 
 
-pub fn handler(ctx: Context<RegisterRouter>, router_id: String, location_lat: i64, location_long: i64) -> Result<()> {
+pub fn handler(
+    ctx: Context<RegisterRouter>,
+    router_id: String,
+    location_lat: i64,
+    location_long: i64,
+    device_pubkey: Pubkey,
+) -> Result<()> {
 
     //  Validation
     require!(
         router_id.is_empty() == false,
-        RouterPulseError::RouterIdEmpty 
+        RouterPulseError::RouterIdEmpty
     );
 
     require!(
@@ -37,6 +43,12 @@ pub fn handler(ctx: Context<RegisterRouter>, router_id: String, location_lat: i6
 
     let router = &mut ctx.accounts.router;
     router.owner = ctx.accounts.owner.key();
+    // The device key signs heartbeats on this router's behalf. It is
+    // deliberately independent from `owner` — see state/router.rs.
+    // Callers that don't want to run a separate device identity yet
+    // can simply pass their own owner pubkey here.
+    router.device_pubkey = device_pubkey;
+    router.device_key_version = 0;
     router.router_id = router_id.clone();
     router.location_lat = location_lat;
     router.location_long = location_long;
@@ -47,10 +59,12 @@ pub fn handler(ctx: Context<RegisterRouter>, router_id: String, location_lat: i6
     router.total_penalties = 0;
     router.heartbeat_count = 0;
     router.missed_heartbeats = 0;
+    router.last_claim_time = 0;
     router.bump = ctx.bumps.router;
     protocol.total_routers = protocol.total_routers.checked_add(1).ok_or(RouterPulseError::Overflow)?;
-    emit!(RouterRegistered {    
+    emit!(RouterRegistered {
         owner: router.owner,
+        device_pubkey: router.device_pubkey,
         router_id: router.router_id.clone(),
         location_lat: router.location_lat,
         location_long: router.location_long,
@@ -88,6 +102,7 @@ pub struct RegisterRouter<'info> {
 #[event]
 pub struct RouterRegistered{
     pub owner: Pubkey,
+    pub device_pubkey: Pubkey,
     pub router_id: String,
     pub location_lat: i64,
     pub location_long: i64,

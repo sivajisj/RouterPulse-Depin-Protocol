@@ -68,4 +68,33 @@ pub enum RouterPulseError {
 
     #[msg("Vault has insufficient balance")]
     InsufficientVaultBalance,
+
+    // epoch
+    #[msg("Epoch duration must span at least a handful of heartbeat intervals")]
+    InvalidEpochDuration,
+
+    #[msg("Supplied epoch number does not match the current on-chain clock")]
+    WrongEpochNumber,
+
+    #[msg("Epoch has not ended yet")]
+    EpochNotEnded,
+
+    #[msg("Epoch has already been finalized")]
+    EpochAlreadyFinalized,
+
+    #[msg("Epoch has not been finalized yet")]
+    EpochNotFinalized,
+
+    #[msg("Epoch reward has already been claimed")]
+    EpochAlreadyClaimed,
+
+    #[msg("This epoch record does not belong to the given router")]
+    EpochRouterMismatch,
+
+    // device identity
+    #[msg("Signer is not the router's registered device key")]
+    InvalidDeviceSigner,
+
+    #[msg("New device key must differ from the current one")]
+    DeviceKeyUnchanged,
 }

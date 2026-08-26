@@ -11,9 +11,22 @@ pub enum RouterStatus {
 #[account]
 #[derive(InitSpace)]
 pub struct Router {
-    /// The wallet that owns and operates this router
-    /// Responsible for paying penalties and receiving rewards
+    /// The wallet that owns and operates this router.
+    /// Responsible for paying penalties and receiving rewards.
+    /// This is NOT the key that signs heartbeats — see `device_pubkey`.
     pub owner: Pubkey,                  // 32 bytes
+
+    /// The key that signs heartbeat transactions on behalf of the
+    /// physical device. Separated from `owner` so the operator's main
+    /// wallet is never exposed to an unattended router, and so a
+    /// compromised device can be recovered via `rotate_device_key`
+    /// without re-registering the router.
+    pub device_pubkey: Pubkey,          // 32 bytes
+
+    /// Incremented every time the device key is rotated. Lets an
+    /// indexer / audit trail distinguish "old device, new device"
+    /// heartbeats after a recovery event.
+    pub device_key_version: u16,        // 2 bytes
 
     /// Unique hardware identifier , max 32 characters
     /// Example: "router-mumbai-001" or device MAC hash
@@ -33,8 +46,10 @@ pub struct Router {
     /// Unix timestamp of most recent heartbeat
     pub last_heartbeat: i64,           // 8 bytes
 
-    /// Uptime score 0–100
-    /// 100 = perfect, 0 = completely offline
+    /// Real-time uptime score 0–100, used only for fast suspension
+    /// response. This is a complementary signal to the per-epoch
+    /// reward accounting in `RouterEpoch` — it reacts immediately to
+    /// bad behaviour but is never itself used to compute a payout.
     pub uptime_score: u8,              // 1 byte
 
     /// Lifetime earnings in token units
@@ -53,7 +68,7 @@ pub struct Router {
     pub last_claim_time: i64,             // 8 bytes
 
     /// Current operational status of this router
-    pub status: RouterStatus,          // 1 byte  
+    pub status: RouterStatus,          // 1 byte
 
     /// Canonical PDA bump — stored during registration
     pub bump: u8,                      // 1 byte
