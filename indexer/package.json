@@ -13,6 +13,7 @@
     "@solana/web3.js": "^1.95.0",
     "bn.js": "^5.2.0",
     "dotenv": "^16.0.0",
+    "ioredis": "^5.4.1",
     "mongodb": "^6.10.0"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { Db } from "mongodb";
 import * as anchor from "@coral-xyz/anchor";
 import { processSignature } from "./ingest";
+import { EventPublisher } from "./publisher";
 
 /// Subscribes to every log notification for the program over the
 /// cluster's websocket and indexes each one as it confirms. This is the
@@ -19,6 +20,7 @@ export function startLiveSubscription(
     programId: PublicKey,
     connection: Connection,
     parser: anchor.EventParser,
+    publisher?: EventPublisher,
 ): number {
     console.log(`[live] subscribing to logs for ${programId.toBase58()} ...`);
 
@@ -26,7 +28,7 @@ export function startLiveSubscription(
         programId,
         (logsResult) => {
             if (logsResult.err) return; // failed instructions emit no events worth indexing
-            processSignature(db, programId, connection, parser, logsResult.signature)
+            processSignature(db, programId, connection, parser, logsResult.signature, publisher)
                 .then(count => {
                     if (count > 0) {
                         console.log(`[live] ${logsResult.signature.slice(0, 12)}... -> ${count} event(s)`);

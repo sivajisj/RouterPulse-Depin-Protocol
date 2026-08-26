@@ -3,6 +3,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { decodeTransactionEvents } from "./eventParser";
 import { applyEventToProjections } from "./projections";
+import { EventPublisher } from "./publisher";
 
 /// Fetches, decodes, and applies every event in one transaction.
 /// Shared by both backfill and the live subscription so there is
@@ -23,6 +24,7 @@ export async function processSignature(
     connection: Connection,
     parser: anchor.EventParser,
     signature: string,
+    publisher?: EventPublisher,
 ): Promise<number> {
     const transactions = db.collection("transactions");
 
@@ -66,6 +68,10 @@ export async function processSignature(
             } catch (err: any) {
                 console.error(`[ingest] projection failed for ${ev.id} (${ev.name}):`, err.message || err);
             }
+            // Published after the durable write, so a client that reacts
+            // to the notification by querying the API can't observe an
+            // event that isn't in MongoDB yet.
+            publisher?.publish(ev);
         }
     }
     return events.length;

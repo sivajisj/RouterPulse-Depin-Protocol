@@ -18,6 +18,9 @@ export const MONGO_URL = process.env.MONGO_URL || "mongodb://127.0.0.1:27017";
 export const MONGO_DB  = process.env.MONGO_DB  || "routerpulse";
 export const IDL_PATH  = path.resolve(__dirname, "..", process.env.IDL_PATH || "../routerpulse/target/idl/routerpulse.json");
 export const RECONCILE_INTERVAL_MS = Number(process.env.RECONCILE_INTERVAL_MS || 30_000);
+// Optional: when set, newly-indexed events are published here for the
+// API's WebSocket gateway to fan out. Indexing works fine without it.
+export const REDIS_URL: string | undefined = process.env.REDIS_URL;
 export const BACKFILL_PAGE_SIZE    = Number(process.env.BACKFILL_PAGE_SIZE || 1_000);
 
 export function loadIdl(): anchor.Idl {

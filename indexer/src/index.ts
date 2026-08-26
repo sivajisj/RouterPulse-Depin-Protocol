@@ -1,11 +1,12 @@
 import {
-    loadIdl, getConnection, getProgramId, getDb, closeDb, RECONCILE_INTERVAL_MS,
+    loadIdl, getConnection, getProgramId, getDb, closeDb, RECONCILE_INTERVAL_MS, REDIS_URL,
 } from "./config";
 import { buildEventParser } from "./eventParser";
 import { ensureIndexes } from "./db";
 import { runBackfill } from "./backfill";
 import { startLiveSubscription } from "./live";
 import { startReconciliationLoop } from "./reconcile";
+import { EventPublisher } from "./publisher";
 
 async function main() {
     console.log("🔎 RouterPulse Indexer starting...\n");
@@ -16,9 +17,12 @@ async function main() {
     const db         = await getDb();
     const parser     = buildEventParser(programId, idl);
 
+    const publisher = new EventPublisher(REDIS_URL);
+
     console.log(`   Program:  ${programId.toBase58()}`);
     console.log(`   RPC:      ${connection.rpcEndpoint}`);
-    console.log(`   Mongo DB: ${db.databaseName}\n`);
+    console.log(`   Mongo DB: ${db.databaseName}`);
+    console.log(`   Redis:    ${REDIS_URL ?? "(not configured — no live fanout)"}\n`);
 
     await ensureIndexes(db);
 
@@ -32,7 +36,7 @@ async function main() {
     const reconcileTimer = startReconciliationLoop(RECONCILE_INTERVAL_MS);
 
     // 3. Subscribe for everything from now on.
-    const subscriptionId = startLiveSubscription(db, programId, connection, parser);
+    const subscriptionId = startLiveSubscription(db, programId, connection, parser, publisher);
 
     console.log("\n✅ Indexer running. Ctrl+C to stop.\n");
 
@@ -40,6 +44,7 @@ async function main() {
         console.log("\n🛑 Shutting down...");
         clearInterval(reconcileTimer);
         try { await connection.removeOnLogsListener(subscriptionId); } catch { /* already gone */ }
+        await publisher.close();
         await closeDb();
         process.exit(0);
     };
