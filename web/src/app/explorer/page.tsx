@@ -6,12 +6,15 @@ const EVENT_TYPES = [
     "RouterEpochFinalized", "RewardClaimed", "VestedRewardClaimed", "RouterSlashed",
 ];
 
+// Next 15 made `searchParams` and `params` async — they're Promises now,
+// so every page that reads them has to await first.
 export default async function ExplorerPage({
     searchParams,
 }: {
-    searchParams: { name?: string };
+    searchParams: Promise<{ name?: string }>;
 }) {
-    const page = await api.events(60, searchParams.name);
+    const { name } = await searchParams;
+    const page = await api.events(60, name);
 
     if (!page) {
         return (
@@ -33,7 +36,7 @@ export default async function ExplorerPage({
             <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
                 <a
                     href="/explorer"
-                    className={`badge ${!searchParams.name ? "badge-active" : "badge-inactive"}`}
+                    className={`badge ${!name ? "badge-active" : "badge-inactive"}`}
                     style={{ padding: "4px 12px" }}
                 >
                     all
@@ -42,7 +45,7 @@ export default async function ExplorerPage({
                     <a
                         key={t}
                         href={`/explorer?name=${t}`}
-                        className={`badge ${searchParams.name === t ? "badge-active" : "badge-inactive"}`}
+                        className={`badge ${name === t ? "badge-active" : "badge-inactive"}`}
                         style={{ padding: "4px 12px", textTransform: "none" }}
                     >
                         {t}

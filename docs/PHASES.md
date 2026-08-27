@@ -95,7 +95,7 @@ New standalone NestJS service, `api/` — REST + WebSocket over the indexer's Mo
 - NestJS REST + WebSocket API over the indexed MongoDB/Redis data: routers, rewards, staking, analytics, admin.
 - Auth via wallet-signature verification, RBAC, rate limiting, OpenAPI docs.
 
-## Phase 5 — Analytics (planned)
+## Phase 5 — ClickHouse Analytics ❌ (not built — see "Still open")
 
 - ClickHouse for event-level analytics (uptime by region, reward distribution, staking TVL) separate from MongoDB's operational projection.
 
@@ -111,7 +111,7 @@ New `web/` app — Next.js 14 App Router over the Phase 4 API. Details in [web/R
 - **Verified end to end, against the real running stack**: production build clean, all five routes returning 200 with genuinely indexed data (4 real routers, real token totals, real decoded event names — not empty shells), unknown router PDA correctly 404ing. Then the full chain live: ran the simulator against the validator with indexer + API + web all up and a Socket.IO client attached — **15 real events streamed through** (including `RouterSlashed`), and the dashboard's heartbeat counter moved 33 → 39 from actual on-chain activity.
 - **Honest gap**: no wallet adapter yet. The API's Sign-In-With-Solana flow is built and tested, but this dashboard is read-only and doesn't connect a wallet, so the authenticated admin view isn't wired up here. That's the clear next step for this app.
 
-## Phase 7 — DEX Integration (planned)
+## Phase 7 — DEX Integration ❌ (not built — see "Still open")
 
 - Treasury page with swap quotes via a DEX aggregator (not a custom AMM).
 
@@ -131,12 +131,24 @@ Local stack reproducibility and continuous integration. Details in [infrastructu
 
 Observability (OpenTelemetry/Prometheus/Grafana), a production deployment target (registry, secrets management, non-root users, pinned digests, resource limits), and load testing remain open. The compose stack is explicitly for local development.
 
-## Phase 9 — Security Pass (planned)
+## Phase 9 — Security Pass ✅ (partial, this session)
 
-- `cargo audit`/`clippy`, dependency/secret scanning, a written threat model, and an expanded on-chain attack-simulation suite once the token/staking surface from Phase 2 exists (double-claim, replay, CPI target substitution, treasury drain, etc. — several of these are already covered for the current SOL-vault design in Phase 1's test suite).
+Threat model, authority model, and a dependency audit where the findings were **fixed rather than documented away**. Full writeup in [docs/security.md](security.md).
+
+- **[docs/security.md](security.md)** documents the threat model (12 concrete attacks and where each is mitigated), the authority model (what the protocol authority can and — importantly — cannot do), the arithmetic guarantees, and the account-validation approach.
+- **Dependency audit, with the high-severity findings actually resolved:**
+  - `web`: 2 high → **0 high**. Next.js 14 had no non-breaking fix, so upgraded 14 → 15, which required migrating `params`/`searchParams` to the async form Next 15 introduced (a genuine breaking change that the build caught).
+  - `api`: 4 high → **0 high**. Upgraded NestJS 10 → 11, clearing transitive `multer`, `js-yaml` and `lodash` advisories; required a documented cast for `@nestjs/jwt` 11's tightened `expiresIn` type.
+  - `indexer`: already clean.
+- **Both upgrades verified, not assumed**: the API's full 21-test suite passes on NestJS 11; the web app builds and every route renders real indexed data on Next 15, with query-param filtering confirmed working (checked table rows specifically, since filter-button labels appear in the HTML regardless); both Docker images still build.
+- **Honest list of what a real audit would still need** is in the doc rather than glossed over — the largest gap being that the **upgrade authority is still a single developer keypair**, where production needs a multisig. Also open: `cargo audit` in CI (the tool isn't installed here), fuzzing/property tests on the math module, systematic adversarial tests for PDA substitution and CPI target confusion, timestamp-manipulation analysis, economic simulation, real secrets management, and a shared-store rate limiter (the current one is per-instance and in-memory, so it multiplies by instance count when scaled).
 
 ---
 
-## Why this order
+## Still open
 
-Everything above Phase 1 is built *on top of* the reward/security model. Building the indexer, backend, or dashboard against a protocol with a live reward-farming bug and no device-key separation would mean re-doing that work once the protocol changed underneath it — so protocol correctness came first.
+**Phase 5 (ClickHouse analytics)** and **Phase 7 (DEX integration)** were not built. The analytics that exist are MongoDB aggregations served by the API, which is sufficient at this data volume; ClickHouse would matter at event volumes this project hasn't reached. DEX integration was descoped in favour of finishing the dashboard and infrastructure.
+
+**Phase 8** is partial: Docker Compose and CI are done, but observability (OpenTelemetry/Prometheus/Grafana), a production deployment target, and load testing are not.
+
+**The dashboard has no wallet adapter yet.** The API's Sign-In-With-Solana flow is built and tested, but the web app is read-only and doesn't connect a wallet, so the authenticated admin view isn't reachable from the UI. That's the most valuable next piece of work.

@@ -2,12 +2,14 @@ import Link from "next/link";
 import { api, formatTokens, shortAddress, timeAgo } from "@/lib/api";
 import { StatusBadge, ScoreMeter, ApiOffline } from "@/components/ui";
 
+// Next 15 made `searchParams` async — await before reading.
 export default async function RoutersPage({
     searchParams,
 }: {
-    searchParams: { status?: string };
+    searchParams: Promise<{ status?: string }>;
 }) {
-    const qs = searchParams.status ? `?limit=100&status=${searchParams.status}` : "?limit=100";
+    const { status } = await searchParams;
+    const qs = status ? `?limit=100&status=${status}` : "?limit=100";
     const page = await api.routers(qs);
 
     if (!page) {
@@ -28,7 +30,7 @@ export default async function RoutersPage({
 
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 {filters.map(f => {
-                    const active = f === "all" ? !searchParams.status : searchParams.status === f;
+                    const active = f === "all" ? !status : status === f;
                     return (
                         <Link
                             key={f}

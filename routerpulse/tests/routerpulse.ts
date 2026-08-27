@@ -703,12 +703,22 @@ describe("RouterPulse", () => {
                 console.log("✅ Over-claiming a fully vested grant rejected");
             }
 
-            // Total minted must equal genesis + everything vested — no
-            // supply appeared from anywhere else.
+            // Circulating supply must be exactly what the protocol says it
+            // minted, less what it burned — proving no supply appeared from
+            // anywhere outside genesis + vesting.
+            //
+            // Note this subtracts totalBurned rather than comparing against
+            // totalMinted alone: burning reduces the mint's supply but is
+            // tracked as a separate counter, so `supply == totalMinted`
+            // only holds before the first burn. That made the assertion
+            // pass on a fresh validator (where the burn test runs later)
+            // and fail against any state where a burn had already
+            // happened — a bug in the test, not the protocol.
             const mint = await getMint(provider.connection, rewardMintPDA);
             const p = await fetchProtocol();
-            assert.equal(mint.supply.toString(), p.totalMinted.toString(),
-                "on-chain supply must match the protocol's own minted accounting");
+            const expectedSupply = BigInt(p.totalMinted.toString()) - BigInt(p.totalBurned.toString());
+            assert.equal(mint.supply.toString(), expectedSupply.toString(),
+                "on-chain supply must equal totalMinted - totalBurned");
             console.log("✅ Supply reconciles with protocol accounting:", mint.supply.toString());
         });
     });

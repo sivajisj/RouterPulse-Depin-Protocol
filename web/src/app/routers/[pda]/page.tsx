@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { api, formatTokens, formatBps, shortAddress, timeAgo } from "@/lib/api";
 import { Stat, StatusBadge, ScoreMeter } from "@/components/ui";
 
-export default async function RouterDetailPage({ params }: { params: { pda: string } }) {
+// Next 15 made `params` async — await before reading.
+export default async function RouterDetailPage({ params }: { params: Promise<{ pda: string }> }) {
+    const { pda } = await params;
     const [router, epochs] = await Promise.all([
-        api.router(params.pda),
-        api.routerEpochs(params.pda),
+        api.router(pda),
+        api.routerEpochs(pda),
     ]);
 
     if (!router) notFound();

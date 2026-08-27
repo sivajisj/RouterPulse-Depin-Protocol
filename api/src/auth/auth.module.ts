@@ -10,7 +10,12 @@ import { config } from "../config";
     imports: [
         JwtModule.register({
             secret: config.jwtSecret,
-            signOptions: { expiresIn: config.jwtExpiresIn },
+            // Cast: @nestjs/jwt 11 types `expiresIn` as `number |
+            // StringValue` (ms's template-literal union like "1h"), which
+            // an env-var string can't satisfy statically. The value is
+            // still validated at runtime by jsonwebtoken — a malformed
+            // duration throws on the first token signed, at startup.
+            signOptions: { expiresIn: config.jwtExpiresIn as any },
         }),
     ],
     controllers: [AuthController],
