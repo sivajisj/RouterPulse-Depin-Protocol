@@ -151,4 +151,15 @@ Threat model, authority model, and a dependency audit where the findings were **
 
 **Phase 8** is partial: Docker Compose and CI are done, but observability (OpenTelemetry/Prometheus/Grafana), a production deployment target, and load testing are not.
 
-**The dashboard has no wallet adapter yet.** The API's Sign-In-With-Solana flow is built and tested, but the web app is read-only and doesn't connect a wallet, so the authenticated admin view isn't reachable from the UI. That's the most valuable next piece of work.
+**The dashboard still can't send transactions.** The wallet adapter and Sign-In-With-Solana are done (see below) — a connected wallet can authenticate and the RBAC-gated admin view is reachable — but every operator *action* (register a router, stake, claim, unstake) still has to be driven from the simulator or CLI. Building those transactions client-side is the natural next step, and the wallet connection it needs is already in place.
+
+---
+
+## Wallet adapter ✅ (closed after Phase 9)
+
+The gap listed above as "most valuable next piece of work" is now done:
+
+- **Sign-In-With-Solana in the browser.** `useSession` requests a nonce, has the wallet sign it, and trades the signature for a session JWT. The wallet signs a *message*, never a transaction — signing in costs nothing and moves no funds. A stored session is discarded when the connected wallet changes, so switching wallets can't leave you authenticated as the previous one.
+- **`/operator`** lists the routers the connected wallet owns and renders an admin audit panel only for the on-chain protocol authority. The page just calls the endpoint and reacts to 200 vs 403 — the API resolves "is this the authority" against live on-chain state, not a role in a database, so it follows an authority rotation automatically.
+- **A real dependency conflict, caught by the build:** several `@solana/wallet-adapter-*` packages pull in `@types/react` 19 while this app is on React 18. Two copies in the tree make the JSX types incompatible (19's `ReactNode` gained `Promise<ReactNode>`), which surfaces as the misleading "ConnectionProvider cannot be used as a JSX component". Pinned via npm `overrides` — which also needed a clean reinstall, since npm silently reused the existing tree and left the nested copies in place.
+- **Verified against the live stack**, not just compiled: all five routes return 200, the operator page renders its wallet-gated state, and the exact handshake the browser performs was replayed against the running API — the authority wallet signs in and gets 200 on `/admin/audit`, a random wallet signs in but gets **403**, a reused nonce gets **401**, and a signature forged by a different keypair gets **401**.

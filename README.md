@@ -19,7 +19,7 @@ Solana program (Rust/Anchor)      routerpulse/   epochs, staking, slashing, vest
    API (NestJS)              │     api/          REST + WebSocket, SIWS auth, on-chain RBAC
         │◀───────────────────┘
         ▼
-   Dashboard (Next.js 14)         web/           Server Components, live feed, router map
+   Dashboard (Next.js 15)         web/           Server Components, wallet auth, live feed
 ```
 
 | Directory | What it is |
@@ -27,7 +27,7 @@ Solana program (Rust/Anchor)      routerpulse/   epochs, staking, slashing, vest
 | [`routerpulse/`](routerpulse/) | The Anchor program, simulator, and integration tests (documented below) |
 | [`indexer/`](indexer/README.md) | Event-driven indexer: Solana → MongoDB, with backfill and reconciliation |
 | [`api/`](api/README.md) | NestJS REST + WebSocket API, Sign-In-With-Solana auth, RBAC bound to on-chain authority |
-| [`web/`](web/README.md) | Next.js 14 dashboard — network overview, router explorer, analytics, live event feed |
+| [`web/`](web/README.md) | Next.js dashboard — network overview, router explorer, analytics, live event feed, wallet-authenticated operator view |
 | [`infrastructure/`](infrastructure/README.md) | Docker Compose stack and CI notes |
 | [`docs/PHASES.md`](docs/PHASES.md) | The full roadmap: what's built, what's not, and the real bugs found along the way |
 | [`docs/security.md`](docs/security.md) | Threat model, authority model, dependency audit, and what a real audit would still need |

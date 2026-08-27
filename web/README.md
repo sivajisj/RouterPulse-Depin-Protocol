@@ -1,7 +1,8 @@
 # RouterPulse Dashboard
 
-Next.js 14 (App Router) dashboard over the [API](../api/README.md).
-Phase 6 of the [roadmap](../docs/PHASES.md).
+Next.js 15 (App Router) dashboard over the [API](../api/README.md).
+Phase 6 of the [roadmap](../docs/PHASES.md); the wallet layer was added
+after Phase 9.
 
 ## Pages
 
@@ -10,20 +11,51 @@ Phase 6 of the [roadmap](../docs/PHASES.md).
 | `/` | Network overview — fleet stats, token supply/burn/slash totals, router map, live event feed |
 | `/routers` | Filterable router table with uptime meters and stake |
 | `/routers/[pda]` | One router: owner/device identity, heartbeat history, per-epoch reward & slash breakdown |
+| `/operator` | The connected wallet's routers, plus an admin audit panel for the protocol authority |
 | `/analytics` | Fleet composition, regional breakdown, recently finalized epochs |
 | `/explorer` | Raw decoded event log, filterable by event type |
 
+## Wallet + Sign-In-With-Solana
+
+`/operator` is the one wallet-aware page. Connecting is enough to see
+the routers a wallet owns (that's public data); **signing in** proves
+control of the wallet and unlocks the admin panel.
+
+The handshake is: request a nonce → wallet signs it → trade the
+signature for a session JWT. The wallet signs a *message*, never a
+transaction, so signing in costs nothing and moves no funds. The nonce
+is single-use and expires in five minutes.
+
+The admin panel is gated by whether the API returns 200 or 403 — and
+the API decides that by comparing the session wallet against the
+authority address currently stored **on-chain**, not a role in a
+database. If the real authority rotates, access follows on the next
+reconciliation pass with nothing to change here.
+
+The connection this provider holds is used only for signing; every
+*read* on every page still goes through the API's indexed projection.
+
 ## Server Components by default
 
-Every page is a Server Component that fetches from the API on the
-server and ships HTML. The **only** Client Component that matters is
-`LiveFeed` — it's the one piece that genuinely needs a persistent
-connection, so it's the one piece that gets client JS.
+Every page that can be a Server Component is one: it fetches from the
+API on the server and ships HTML. Only two things are client-side, and
+both have a reason — `LiveFeed` needs a persistent socket, and
+`/operator` is scoped to a wallet the server has no knowledge of.
 
-That shows up in the build output: the dashboard is ~13.6 kB of route
-JS (the Socket.IO client), while `/routers`, `/analytics`, `/explorer`
-and `/routers/[pda]` are ~180 B each. Making the whole tree
-`"use client"` would have shipped Socket.IO to every route for nothing.
+That shows up in the build output:
+
+```
+/                13.9 kB   ← Socket.IO client for the live feed
+/operator        3.9 kB    ← wallet adapter + SIWS
+/routers          168 B
+/routers/[pda]    168 B
+/analytics        168 B
+/explorer         123 B
+```
+
+The read-only pages cost essentially nothing. Making the whole tree
+`"use client"` would have shipped Socket.IO *and* the wallet adapter to
+every route for nothing.
 
 The live feed is also **seeded server-side** with recent events, so it
 renders populated on first paint instead of sitting empty until
