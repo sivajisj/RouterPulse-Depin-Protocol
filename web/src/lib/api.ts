@@ -1,5 +1,11 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+/// Solana RPC the wallet adapter connects to for signing and sending
+/// transactions. Reads still come from the API's indexed projection —
+/// this is only for the operator actions the API deliberately can't
+/// perform on a user's behalf.
+export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "http://localhost:8899";
+
 export interface RouterDoc {
     _id: string;
     owner: string;

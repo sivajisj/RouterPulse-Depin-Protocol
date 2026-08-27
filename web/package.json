@@ -9,6 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/wallet-adapter-react-ui": "^0.9.39",
+    "@solana/wallet-adapter-wallets": "^0.19.38",
+    "@solana/web3.js": "^1.98.4",
+    "bs58": "^6.0.0",
     "next": "^15.5.24",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -19,5 +25,10 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "typescript": "^5.0.0"
+  },
+  "overridesComment": "Several @solana/wallet-adapter-* packages depend on @types/react 19 while this app is on React 18. Two copies in the tree make React 18's JSX types incompatible with 19's (ReactNode gained Promise<ReactNode>), surfacing as 'ConnectionProvider cannot be used as a JSX component'. Pin one version tree-wide. Note npm rejects a '//' comment key inside overrides itself, hence this sibling field.",
+  "overrides": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0"
   }
 }
