@@ -1,5 +1,14 @@
 # Deploying RouterPulse
 
+> **Currently live:** dashboard at <https://web-indol-xi-67.vercel.app>,
+> program `4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4` on **devnet**.
+>
+> The API and indexer still run on a laptop, exposed through a
+> `cloudflared` quick tunnel. **That URL dies when the machine sleeps**,
+> and the dashboard bakes it in at build time, so a permanent setup needs
+> the API hosted properly (§4) and a Vercel redeploy. Treat the current
+> link as demo-grade, not something to put on a CV.
+
 Getting from "runs on my laptop" to a URL someone else can open.
 
 Everything here is mechanical — the decisions are already made. Budget
