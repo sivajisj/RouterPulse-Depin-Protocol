@@ -1,13 +1,25 @@
 # Deploying RouterPulse
 
-> **Currently live:** dashboard at <https://web-indol-xi-67.vercel.app>,
-> program `4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4` on **devnet**.
+> **Currently live — no laptop required:**
+> - Dashboard: <https://web-indol-xi-67.vercel.app> (Vercel)
+> - API: <https://routerpulse-api.onrender.com> (Render)
+> - Program: `4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4` on **devnet**
+> - Data: MongoDB Atlas + Redis Cloud
 >
-> The API and indexer still run on a laptop, exposed through a
-> `cloudflared` quick tunnel. **That URL dies when the machine sleeps**,
-> and the dashboard bakes it in at build time, so a permanent setup needs
-> the API hosted properly (§4) and a Vercel redeploy. Treat the current
-> link as demo-grade, not something to put on a CV.
+> **Two caveats worth knowing before sending anyone the link:**
+>
+> 1. **Render's free tier spins down when idle**, and the *first* request
+>    after that returns a bare `404` (`x-render-routing: no-server`)
+>    rather than waiting for the wake. A visitor may see an empty
+>    dashboard and need one refresh. Fixes, in order of cost: point a free
+>    uptime pinger (UptimeRobot, cron-job.org) at
+>    `/health` every 10 minutes to keep it warm, or move to Render's
+>    paid instance which doesn't sleep.
+> 2. **The indexer still runs locally.** The API and dashboard are
+>    hosted, so the site stays up regardless — but *new* on-chain
+>    activity only reaches MongoDB while the local indexer is running.
+>    Existing data is served fine without it. Hosting it needs a Render
+>    Background Worker (paid) or an equivalent always-on process.
 
 Getting from "runs on my laptop" to a URL someone else can open.
 
