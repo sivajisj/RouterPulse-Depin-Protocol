@@ -193,6 +193,42 @@ export async function applyEventToProjections(
         // kept correct by reconcile.ts fetching the real account instead
         // of replaying deltas, since it holds cumulative counters
         // (total_minted, total_burned, ...) that are cheap to just re-read.
+        // ── governance ────────────────────────────────────────────
+        // These previously emitted nothing at all, so an admin action
+        // was invisible to the index: reconciliation would eventually
+        // show a router had become Decommissioned, but never that an
+        // authority did it, or when.
+        case "RouterReinstated": {
+            await routers.updateOne(
+                { _id: d.router },
+                { $set: { status: "active", uptimeScore: Number(d.uptime_score), updatedAt: new Date() } },
+                { upsert: true }
+            );
+            break;
+        }
+
+        case "RouterDecommissioned": {
+            await routers.updateOne(
+                { _id: d.router },
+                { $set: { status: "decommissioned", updatedAt: new Date() } },
+                { upsert: true }
+            );
+            break;
+        }
+
+        case "ProtocolPaused":
+        case "ProtocolResumed": {
+            await db.collection<any>("protocol").updateOne(
+                { _id: "protocol" },
+                { $set: { isPaused: event.name === "ProtocolPaused", updatedAt: new Date() } },
+                { upsert: true }
+            );
+            break;
+        }
+
+        // RewardRateUpdated carries previous_rate as well as new_rate, so
+        // the raw event in `events` is already a complete audit record —
+        // reconcile.ts owns the current value on `protocol`.
         default:
             break;
     }

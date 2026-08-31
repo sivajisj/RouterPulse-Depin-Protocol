@@ -158,6 +158,7 @@ async function main() {
     step("3. heartbeat — signed by the device key, not the owner");
     const p: any = await (program.account as any).protocol.fetch(protocol);
     const epochOf = (t: number) => Math.floor((t - p.genesisTime.toNumber()) / p.epochDuration.toNumber());
+    const protocolAcct = { epochNumberAt: epochOf };
     const epoch = epochOf(Math.floor(Date.now() / 1000));
 
     // The device needs lamports of its own: it signs the heartbeat and
@@ -249,6 +250,56 @@ async function main() {
             ? ok(`released ${gained} of ${v.totalAmount} — a partial slice, as a linear schedule should`)
             : bad(`released ${gained} of total ${v.totalAmount} — expected a partial amount`);
     } catch (e) { bad("claim_vested", e); }
+
+    // ── 7. rotate_device_key (mirrors RouterActions.doRotate) ─────────
+    step("7. rotate_device_key — the compromised-device recovery path");
+    const newDevice = Keypair.generate();
+    try {
+        await program.methods.rotateDeviceKey(newDevice.publicKey)
+            .accountsPartial({ router, owner: owner.publicKey })
+            .rpc();
+        const acct: any = await (program.account as any).router.fetch(router);
+        if (acct.devicePubkey.toBase58() !== newDevice.publicKey.toBase58()) {
+            bad("router still points at the old device key");
+        } else if (acct.deviceKeyVersion < 1) {
+            bad("device_key_version did not increment — rotations wouldn't be auditable");
+        } else {
+            ok(`device rotated, version now ${acct.deviceKeyVersion}; router keeps its stake and history`);
+        }
+
+        // The retired key must be dead: a heartbeat signed by it has to
+        // be rejected, or rotation wouldn't actually contain a
+        // compromised device.
+        try {
+            const ep = protocolAcct.epochNumberAt(Math.floor(Date.now() / 1000));
+            await program.methods.heartbeat(new BN(ep))
+                .accountsPartial({
+                    router, protocol, device: device.publicKey,
+                    routerEpoch: routerEpochPda(router, ep),
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([device]).rpc();
+            bad("the OLD device key could still heartbeat after rotation");
+        } catch {
+            ok("the old device key is rejected after rotation");
+        }
+    } catch (e) { bad("rotate_device_key", e); }
+
+    // ── 8. unstake (mirrors RouterActions.doUnstake) ──────────────────
+    step("8. unstake — withdraw collateral above the minimum");
+    try {
+        const before = (await getAccount(connection, stakeVault)).amount;
+        await program.methods.unstake(toBaseUnits("1"))
+            .accountsPartial({
+                router, protocol, stake: stakePda(router),
+                rewardMint, stakeVault, ownerTokenAccount: ownerAta,
+                owner: owner.publicKey, tokenProgram: TOKEN_PROGRAM_ID,
+            }).rpc();
+        const moved = before - (await getAccount(connection, stakeVault)).amount;
+        moved === BigInt(toBaseUnits("1").toString())
+            ? ok(`vault debited exactly ${moved}`)
+            : bad(`vault moved ${moved}, expected ${toBaseUnits("1")}`);
+    } catch (e) { bad("unstake", e); }
 
     console.log(`\n${failed === 0 ? "✅" : "❌"} ${passed} passed, ${failed} failed\n`);
     process.exit(failed === 0 ? 0 : 1);

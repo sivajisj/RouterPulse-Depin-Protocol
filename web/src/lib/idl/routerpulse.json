@@ -1882,6 +1882,32 @@
       ]
     },
     {
+      "name": "ProtocolPaused",
+      "discriminator": [
+        35,
+        111,
+        245,
+        138,
+        237,
+        199,
+        79,
+        223
+      ]
+    },
+    {
+      "name": "ProtocolResumed",
+      "discriminator": [
+        205,
+        48,
+        245,
+        118,
+        230,
+        93,
+        98,
+        235
+      ]
+    },
+    {
       "name": "RewardClaimed",
       "discriminator": [
         49,
@@ -1892,6 +1918,32 @@
         48,
         229,
         175
+      ]
+    },
+    {
+      "name": "RewardRateUpdated",
+      "discriminator": [
+        176,
+        128,
+        176,
+        106,
+        40,
+        165,
+        210,
+        144
+      ]
+    },
+    {
+      "name": "RouterDecommissioned",
+      "discriminator": [
+        189,
+        13,
+        104,
+        129,
+        87,
+        9,
+        23,
+        120
       ]
     },
     {
@@ -1918,6 +1970,19 @@
         158,
         104,
         2
+      ]
+    },
+    {
+      "name": "RouterReinstated",
+      "discriminator": [
+        33,
+        140,
+        33,
+        57,
+        113,
+        2,
+        81,
+        218
       ]
     },
     {
@@ -2687,6 +2752,38 @@
       }
     },
     {
+      "name": "ProtocolPaused",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolResumed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "RewardClaimed",
       "type": {
         "kind": "struct",
@@ -2718,6 +2815,30 @@
           {
             "name": "vesting_duration",
             "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardRateUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "previous_rate",
+            "type": "u64"
+          },
+          {
+            "name": "new_rate",
+            "type": "u64"
           },
           {
             "name": "timestamp",
@@ -2933,6 +3054,34 @@
       }
     },
     {
+      "name": "RouterDecommissioned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "RouterEpoch",
       "docs": [
         "Per-router, per-epoch performance record. Created lazily on a",
@@ -3108,6 +3257,38 @@
           {
             "name": "location_long",
             "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterReinstated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "uptime_score",
+            "type": "u8"
           },
           {
             "name": "timestamp",

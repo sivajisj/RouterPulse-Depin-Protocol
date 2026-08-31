@@ -69,6 +69,57 @@ describe("RouterPulse", () => {
     const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
     const fetchProtocol = () => program.account.protocol.fetch(protocolPDA);
 
+    /// Pulls one emitted event back out of a confirmed transaction's logs.
+    ///
+    /// Asserting on events rather than only on resulting state is the
+    /// point for governance actions: reconciliation can always recover
+    /// *what* a value became, but only the event records *who* changed it
+    /// and *when*. Returns the decoded data, or null if absent.
+    async function findEvent(signature: string, name: string): Promise<any | null> {
+        // Anchor's Program constructor camelCases IDL names, so the same
+        // event is `ProtocolPaused` in target/idl/routerpulse.json but
+        // `protocolPaused` on `program.idl`. Compare case-insensitively
+        // so callers can write either and neither silently misses.
+        // (This is the third casing convention in this codebase: event
+        // *fields* stay snake_case in the raw IDL — see indexer/README —
+        // while account fields and now event names get camelCased.)
+        const eq = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+        // Fail loudly if the IDL doesn't declare this event at all.
+        // Without this a stale IDL is indistinguishable from "the program
+        // emitted nothing" — both just yield null — and that ambiguity
+        // cost real debugging time here.
+        const declared: string[] = (program.idl as any).events?.map((e: any) => e.name) ?? [];
+        if (!declared.some(d => eq(d, name))) {
+            throw new Error(
+                `IDL has no event '${name}' (knows ${declared.length}: ${declared.slice(0, 5).join(", ")}…). ` +
+                `The IDL is stale relative to the deployed program — rebuild with 'anchor build'.`
+            );
+        }
+
+        // getTransaction routinely returns null for a moment after .rpc()
+        // even at "confirmed" — the signature is confirmed before the
+        // transaction is servable. Retry rather than reporting "no event".
+        await provider.connection.confirmTransaction(signature, "confirmed");
+        let tx = null;
+        for (let i = 0; i < 8 && !tx; i++) {
+            tx = await provider.connection.getTransaction(signature, {
+                commitment: "confirmed",
+                maxSupportedTransactionVersion: 0,
+            });
+            if (!tx) await sleep(400);
+        }
+        if (!tx?.meta?.logMessages) {
+            throw new Error(`transaction ${signature.slice(0, 12)}… never became retrievable`);
+        }
+
+        const parser = new anchor.EventParser(program.programId, new anchor.BorshCoder(program.idl));
+        for (const ev of parser.parseLogs(tx.meta.logMessages)) {
+            if (eq(ev.name, name)) return ev.data;
+        }
+        return null;
+    }
+
     async function airdrop(pubkey: PublicKey, sol = 1): Promise<void> {
         const sig = await provider.connection.requestAirdrop(pubkey, sol * anchor.web3.LAMPORTS_PER_SOL);
         await provider.connection.confirmTransaction(sig);
@@ -971,6 +1022,53 @@ describe("RouterPulse", () => {
                 .rpc();
             assert.equal((await fetchProtocol()).rewardRate.toString(), "2000000");
             console.log("✅ Reward rate updated");
+        });
+
+        // Governance actions used to emit only `msg!`, so nothing
+        // downstream could answer "who paused the protocol, and when".
+        // These assert on the emitted events specifically, not just the
+        // resulting state — reconciliation already recovers state, but
+        // only an event carries the actor and the transition.
+        it("emits an auditable event when the protocol is paused and resumed", async () => {
+            if ((await fetchProtocol()).isPaused) {
+                await program.methods.resumeProtocol()
+                    .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
+                    .rpc();
+            }
+
+            const pauseSig = await program.methods.pauseProtocol()
+                .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
+                .rpc();
+            const paused = await findEvent(pauseSig, "ProtocolPaused");
+            assert.ok(paused, "pause_protocol must emit ProtocolPaused");
+            assert.equal(paused.authority.toBase58(), provider.wallet.publicKey.toBase58(),
+                "the event must name the authority that actually did it");
+
+            const resumeSig = await program.methods.resumeProtocol()
+                .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
+                .rpc();
+            assert.ok(await findEvent(resumeSig, "ProtocolResumed"));
+            console.log("✅ Pause/resume emit auditable events naming the authority");
+        });
+
+        it("records both the old and new reward rate on update", async () => {
+            const before = (await fetchProtocol()).rewardRate.toString();
+            const sig = await program.methods.updateRewardRate(new BN(3_000_000))
+                .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
+                .rpc();
+
+            const ev = await findEvent(sig, "RewardRateUpdated");
+            assert.ok(ev, "update_reward_rate must emit RewardRateUpdated");
+            // previous_rate is what makes the event a usable audit record:
+            // an indexer that missed an earlier update can still
+            // reconstruct the change, not just where the rate landed.
+            assert.equal(ev.previousRate.toString(), before);
+            assert.equal(ev.newRate.toString(), "3000000");
+            console.log(`✅ Rate change recorded as ${before} -> 3000000`);
+
+            await program.methods.updateRewardRate(new BN(2_000_000))
+                .accountsPartial({ protocol: protocolPDA, authority: provider.wallet.publicKey })
+                .rpc();
         });
 
         it("rejects admin actions from a non-authority", async () => {

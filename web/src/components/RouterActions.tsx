@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import bs58 from "bs58";
+import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
     TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync,
     createAssociatedTokenAccountInstruction,
@@ -37,8 +38,13 @@ export function RouterActions({
     const program = useProgram();
     const stakeTx = useTx();
     const claimTx = useTx();
-    const vestTx  = useTx();
+    const vestTx    = useTx();
+    const unstakeTx = useTx();
+    const rotateTx  = useTx();
     const [amount, setAmount] = useState("10");
+    const [unstakeAmount, setUnstakeAmount] = useState("1");
+    const [rotated, setRotated] = useState<Keypair | null>(null);
+    const [revealRotated, setRevealRotated] = useState(false);
 
     if (!program || !publicKey) return null;
     const routerKey = new PublicKey(router._id);
@@ -118,6 +124,46 @@ export function RouterActions({
         );
     };
 
+    const doUnstake = async () => {
+        const mint = rewardMintPda();
+        const { ata, ix } = await ataIx(publicKey, mint);
+        await unstakeTx.run(
+            () => {
+                const b = program.methods
+                    .unstake(toBaseUnits(unstakeAmount))
+                    .accountsPartial({
+                        router: routerKey,
+                        protocol: protocolPda(),
+                        stake: stakePda(routerKey),
+                        rewardMint: mint,
+                        stakeVault: stakeVaultPda(),
+                        ownerTokenAccount: ata,
+                        owner: publicKey,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                    });
+                return (ix ? b.preInstructions([ix]) : b).rpc();
+            },
+            onDone,
+        );
+    };
+
+    /// Issues a brand-new device identity and points the router at it.
+    /// This is the recovery path for a device that was lost or is
+    /// suspected compromised — the router keeps its registration, its
+    /// history and its stake; only the key allowed to sign heartbeats
+    /// changes. The old key is dead the moment this confirms.
+    const doRotate = async () => {
+        const next = Keypair.generate();
+        const sig = await rotateTx.run(
+            () => program.methods
+                .rotateDeviceKey(next.publicKey)
+                .accountsPartial({ router: routerKey, owner: publicKey })
+                .rpc(),
+            onDone,
+        );
+        if (sig) setRotated(next);
+    };
+
     const claimable = epochs.filter(e => e.finalized && !e.claimed && e.rewardAmount && e.rewardAmount !== "0");
     const vesting   = epochs.filter(e => e.claimed);
 
@@ -188,6 +234,61 @@ export function RouterActions({
                     </div>
                 ))}
                 <TxStatus state={vestTx.state} />
+            </div>
+
+            <div className="action-block">
+                <div className="action-label">
+                    Withdraw collateral
+                    <span className="action-hint">
+                        An active router must stay above the protocol minimum —
+                        decommission it first to withdraw everything.
+                    </span>
+                </div>
+                <div className="action-row">
+                    <input value={unstakeAmount} onChange={e => setUnstakeAmount(e.target.value)} style={{ width: 120 }} />
+                    <button className="btn-primary" disabled={unstakeTx.busy} onClick={doUnstake}>
+                        {unstakeTx.busy ? "Working…" : "Unstake"}
+                    </button>
+                </div>
+                <TxStatus state={unstakeTx.state} />
+            </div>
+
+            <div className="action-block">
+                <div className="action-label">
+                    Rotate device key
+                    <span className="action-hint">
+                        For a lost or compromised device. The router keeps its
+                        registration, history and stake — only the key that may
+                        sign heartbeats changes, and the old one stops working
+                        immediately.
+                    </span>
+                </div>
+                <div className="action-row">
+                    <button className="btn-primary" disabled={rotateTx.busy} onClick={doRotate}>
+                        {rotateTx.busy ? "Working…" : "Issue new device key"}
+                    </button>
+                </div>
+                {rotated && (
+                    <div style={{ marginTop: 10 }}>
+                        <div className="kv">
+                            <span>New device public key</span>
+                            <span className="mono">{rotated.publicKey.toBase58()}</span>
+                        </div>
+                        {revealRotated ? (
+                            <textarea
+                                readOnly
+                                className="secret-box"
+                                value={bs58.encode(rotated.secretKey)}
+                                onFocus={e => e.currentTarget.select()}
+                            />
+                        ) : (
+                            <button className="link-btn" onClick={() => setRevealRotated(true)}>
+                                reveal secret key — copy it onto the device, it is not stored here
+                            </button>
+                        )}
+                    </div>
+                )}
+                <TxStatus state={rotateTx.state} />
             </div>
         </div>
     );

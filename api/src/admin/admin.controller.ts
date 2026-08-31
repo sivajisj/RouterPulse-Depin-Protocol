@@ -24,7 +24,13 @@ export class AdminController {
     async audit(@Query("limit") limit?: string) {
         const n = Math.min(Number(limit) || 50, 200);
         return this.db.collection("events")
-            .find({ name: { $in: ["PenaltyApplied", "RouterSlashed", "TreasuryBurned", "GenesisMinted"] } })
+            .find({ name: { $in: [
+                // economic actions
+                "PenaltyApplied", "RouterSlashed", "TreasuryBurned", "GenesisMinted",
+                // governance actions — who changed what, and when
+                "ProtocolPaused", "ProtocolResumed", "RouterReinstated",
+                "RouterDecommissioned", "RewardRateUpdated",
+            ] } })
             .sort({ blockTime: -1 })
             .limit(n)
             .toArray();
