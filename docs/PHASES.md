@@ -151,7 +151,7 @@ Threat model, authority model, and a dependency audit where the findings were **
 
 **Phase 8** is partial: Docker Compose and CI are done, but observability (OpenTelemetry/Prometheus/Grafana), a production deployment target, and load testing are not.
 
-**The dashboard still can't send transactions.** The wallet adapter and Sign-In-With-Solana are done (see below) — a connected wallet can authenticate and the RBAC-gated admin view is reachable — but every operator *action* (register a router, stake, claim, unstake) still has to be driven from the simulator or CLI. Building those transactions client-side is the natural next step, and the wallet connection it needs is already in place.
+**Operator transactions are now built and verified** — see below. What remains unverified is the browser-wallet UX itself (one human pass with Phantom), not the instruction logic.
 
 ---
 
@@ -163,3 +163,34 @@ The gap listed above as "most valuable next piece of work" is now done:
 - **`/operator`** lists the routers the connected wallet owns and renders an admin audit panel only for the on-chain protocol authority. The page just calls the endpoint and reacts to 200 vs 403 — the API resolves "is this the authority" against live on-chain state, not a role in a database, so it follows an authority rotation automatically.
 - **A real dependency conflict, caught by the build:** several `@solana/wallet-adapter-*` packages pull in `@types/react` 19 while this app is on React 18. Two copies in the tree make the JSX types incompatible (19's `ReactNode` gained `Promise<ReactNode>`), which surfaces as the misleading "ConnectionProvider cannot be used as a JSX component". Pinned via npm `overrides` — which also needed a clean reinstall, since npm silently reused the existing tree and left the nested copies in place.
 - **Verified against the live stack**, not just compiled: all five routes return 200, the operator page renders its wallet-gated state, and the exact handshake the browser performs was replayed against the running API — the authority wallet signs in and gets 200 on `/admin/audit`, a random wallet signs in but gets **403**, a reused nonce gets **401**, and a signature forged by a different keypair gets **401**.
+
+
+## Operator transactions ✅ (closed after the wallet adapter)
+
+The dashboard can now drive the full operator lifecycle — register, stake, claim, vest — with transactions built and signed client-side, since the API holds no keypair and deliberately cannot act for a user.
+
+- **`RegisterRouter`** generates the router's device identity in the browser and shows the secret exactly once, to be copied onto the hardware. It's never persisted: the owner/device split only means anything if a compromised device can't move funds.
+- **`RouterActions`** covers stake / claim epoch / release vested, driven off the indexed projection.
+- **`useTx`** models transaction phases separately so the UI can say *"waiting for your wallet"* — the only step a user can act on. Program errors map to what an operator should do differently (`InsufficientStake`, `StakeLocked`, `NothingVested`, …).
+- **PDA derivations live in a framework-free `pdas.ts`**, so the verification script imports the *same* code the UI uses rather than a parallel re-implementation that could drift.
+
+**Verified with `npm run verify:operator` against a live validator — 8/8**: register (device key provably ≠ owner), stake (vault credited to the exact base unit), device-signed heartbeat, finalize (100% uptime → 240000000 reward, no slash), claim (**mint supply unchanged**, proving claiming really doesn't mint), vest (partial slice, as a linear schedule should).
+
+Two things surfaced while running it:
+- A first pass sent one heartbeat into a two-heartbeat epoch, which correctly scored 50% uptime and landed in the bottom tier: **zero reward, 10% slashed**. The protocol was right; the script was wrong. It's also the cheapest way to make slashing fire in a demo.
+- `@solana/spl-token` was a devDependency despite being imported in app code — would have broken a production install.
+
+**Still unverified:** wallet-adapter UI behaviour and the `useTx` phase transitions, which need one human pass with a browser wallet.
+
+---
+
+## A dropped-event bug found while rehearsing the demo
+
+Preparing `docs/demo.md` surfaced an epoch marked `claimed: true` in MongoDB with **no reward, uptime, or finalized flag**, while the chain had it fully finalized at 10000bps / 240000000. Two separate defects:
+
+1. **A transient `getTransaction` miss claimed the signature forever.** `ingest.ts` treated a `null` response like a reverted transaction and recorded the signature. But `null` usually just means *not queryable yet* — a log notification routinely arrives before the RPC will serve the transaction at that commitment. Because backfill skips already-claimed signatures, those events were lost permanently with nothing to retry them.
+2. **`reconcile.ts` never covered epochs**, so nothing repaired the damage — which is precisely the failure mode reconciliation exists to catch. Epoch records underpin every reward figure the dashboard shows.
+
+Both fixed, and verified against the genuinely corrupted record rather than a synthetic one: reconcile reported `epoch drift wpf6…:1: finalized undefined -> true, reward undefined -> 240000000`, and the API then returned both epochs correctly.
+
+This is the strongest argument in the whole project for why reconciliation exists: the event stream **did** silently lose data, and the periodic re-read from chain is what caught it.
