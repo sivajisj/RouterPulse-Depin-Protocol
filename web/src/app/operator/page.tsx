@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession, authedFetch } from "@/lib/useSession";
+import { RegisterRouter } from "@/components/RegisterRouter";
+import { RouterActions } from "@/components/RouterActions";
 import {
-    API_URL, RouterDoc, Page, EventDoc,
+    API_URL, RouterDoc, EpochDoc, Page, EventDoc,
     formatTokens, shortAddress, timeAgo,
 } from "@/lib/api";
 
@@ -20,6 +22,15 @@ export default function OperatorPage() {
     const [audit, setAudit] = useState<EventDoc[] | null>(null);
     const [adminStatus, setAdminStatus] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
+    const [selected, setSelected] = useState<string | null>(null);
+    const [epochs, setEpochs] = useState<EpochDoc[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    // Bumped after any successful transaction. The indexer needs a
+    // moment to observe and project the event, so this re-fetches on a
+    // short delay rather than immediately — reading back too fast would
+    // show pre-transaction state and look like the action failed.
+    const refresh = () => setTimeout(() => setRefreshKey(k => k + 1), 1500);
 
     // Owned routers are public data — no session needed, just a wallet.
     useEffect(() => {
@@ -30,7 +41,16 @@ export default function OperatorPage() {
             .then((p: Page<RouterDoc>) => setRouters(p.items ?? []))
             .catch(() => setRouters([]))
             .finally(() => setLoading(false));
-    }, [wallet]);
+    }, [wallet, refreshKey]);
+
+    // Epoch history for whichever router the operator has expanded.
+    useEffect(() => {
+        if (!selected) { setEpochs([]); return; }
+        fetch(`${API_URL}/api/v1/routers/${selected}/epochs?limit=50`)
+            .then(r => r.json())
+            .then((p: Page<EpochDoc>) => setEpochs(p.items ?? []))
+            .catch(() => setEpochs([]));
+    }, [selected, refreshKey]);
 
     // The admin probe is the interesting part: the API decides whether
     // this wallet is the authority by comparing against live on-chain
@@ -78,13 +98,13 @@ export default function OperatorPage() {
                     <thead>
                         <tr>
                             <th>Router</th><th>Status</th><th>Score</th>
-                            <th>Staked</th><th>Rewards</th><th>Last Seen</th>
+                            <th>Staked</th><th>Rewards</th><th>Last Seen</th><th />
                         </tr>
                     </thead>
                     <tbody>
-                        {loading && <tr><td colSpan={6} className="empty">Loading…</td></tr>}
+                        {loading && <tr><td colSpan={7} className="empty">Loading…</td></tr>}
                         {!loading && routers?.length === 0 && (
-                            <tr><td colSpan={6} className="empty">
+                            <tr><td colSpan={7} className="empty">
                                 This wallet doesn&apos;t own any indexed routers yet.
                             </td></tr>
                         )}
@@ -100,10 +120,32 @@ export default function OperatorPage() {
                                 <td className="mono">{formatTokens(r.stakedAmount)}</td>
                                 <td className="mono">{formatTokens(r.totalRewards)}</td>
                                 <td style={{ color: "var(--text-dim)" }}>{timeAgo(r.lastHeartbeat)}</td>
+                                <td>
+                                    <button
+                                        className="link-btn"
+                                        onClick={() => setSelected(selected === r._id ? null : r._id)}
+                                    >
+                                        {selected === r._id ? "hide" : "manage"}
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+            </div>
+
+            {selected && routers?.find(r => r._id === selected) && (
+                <div style={{ marginBottom: 14 }}>
+                    <RouterActions
+                        router={routers.find(r => r._id === selected)!}
+                        epochs={epochs}
+                        onDone={refresh}
+                    />
+                </div>
+            )}
+
+            <div style={{ marginBottom: 14 }}>
+                <RegisterRouter onRegistered={refresh} />
             </div>
 
             {isAuthenticated && (
