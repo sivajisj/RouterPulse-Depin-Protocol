@@ -30,6 +30,7 @@ Solana program (Rust/Anchor)      routerpulse/   epochs, staking, slashing, vest
 | [`web/`](web/README.md) | Next.js dashboard — network overview, router explorer, analytics, live event feed, wallet-authenticated operator view |
 | [`infrastructure/`](infrastructure/README.md) | Docker Compose stack and CI notes |
 | [`docs/PHASES.md`](docs/PHASES.md) | The full roadmap: what's built, what's not, and the real bugs found along the way |
+| [`docs/resume-reference.md`](docs/resume-reference.md) | Verified metrics, résumé bullets, and interview talking points |
 | [`docs/demo.md`](docs/demo.md) | A ~12 minute walkthrough — shows the system running before any code |
 | [`docs/deployment.md`](docs/deployment.md) | Devnet + cloud deployment, with the gotchas that bite first |
 | [`docs/security.md`](docs/security.md) | Threat model, authority model, dependency audit, and what a real audit would still need |
