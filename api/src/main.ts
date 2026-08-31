@@ -27,7 +27,13 @@ export async function createApp() {
 
 async function bootstrap() {
     const app = await createApp();
-    await app.listen(config.port);
+    // Bind 0.0.0.0, not the default localhost. In a container the
+    // platform routes traffic in from outside the process's network
+    // namespace, so a localhost-only listener is unreachable — Render
+    // reports this as `x-render-routing: no-server` and a bare 404,
+    // which looks like a routing or build problem rather than a bind
+    // problem. Harmless locally, required in production.
+    await app.listen(config.port, "0.0.0.0");
     Logger.log(`RouterPulse API listening on :${config.port} (docs at /api/docs)`, "Bootstrap");
 }
 
