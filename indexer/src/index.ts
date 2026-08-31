@@ -2,11 +2,28 @@ import {
     loadIdl, getConnection, getProgramId, getDb, closeDb, RECONCILE_INTERVAL_MS, REDIS_URL,
 } from "./config";
 import { buildEventParser } from "./eventParser";
-import { ensureIndexes } from "./db";
+import { ensureIndexes, warnOnHostileIndexes } from "./db";
 import { runBackfill } from "./backfill";
 import { startLiveSubscription } from "./live";
 import { startReconciliationLoop } from "./reconcile";
 import { EventPublisher } from "./publisher";
+
+/// Strips the password out of a connection URL before it's logged.
+///
+/// Managed Redis and Mongo hand you credentials inline in the URL, so
+/// printing it verbatim at startup writes the password into every log
+/// sink downstream — and startup banners are exactly the lines that get
+/// shipped to aggregators and pasted into issues.
+function redactCredentials(url?: string): string | undefined {
+    if (!url) return undefined;
+    try {
+        const u = new URL(url);
+        if (u.password) u.password = "***";
+        return u.toString();
+    } catch {
+        return "(unparseable url)";
+    }
+}
 
 async function main() {
     console.log("🔎 RouterPulse Indexer starting...\n");
@@ -22,8 +39,9 @@ async function main() {
     console.log(`   Program:  ${programId.toBase58()}`);
     console.log(`   RPC:      ${connection.rpcEndpoint}`);
     console.log(`   Mongo DB: ${db.databaseName}`);
-    console.log(`   Redis:    ${REDIS_URL ?? "(not configured — no live fanout)"}\n`);
+    console.log(`   Redis:    ${redactCredentials(REDIS_URL) ?? "(not configured — no live fanout)"}\n`);
 
+    await warnOnHostileIndexes(db);
     await ensureIndexes(db);
 
     // 1. Catch up on everything that happened before this process
