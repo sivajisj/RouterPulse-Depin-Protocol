@@ -15,6 +15,7 @@
  */
 import {
     Connection, Keypair, PublicKey, SystemProgram, LAMPORTS_PER_SOL,
+    Transaction, sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { AnchorProvider, Program, BN, Wallet } from "@coral-xyz/anchor";
 import {
@@ -159,8 +160,20 @@ async function main() {
     const epochOf = (t: number) => Math.floor((t - p.genesisTime.toNumber()) / p.epochDuration.toNumber());
     const epoch = epochOf(Math.floor(Date.now() / 1000));
 
-    await connection.confirmTransaction(
-        await connection.requestAirdrop(device.publicKey, LAMPORTS_PER_SOL));
+    // The device needs lamports of its own: it signs the heartbeat and
+    // pays rent for the epoch account on the first heartbeat of each
+    // epoch. Fund it by transfer from the owner rather than an airdrop —
+    // airdrops only exist on test clusters, and devnet's faucet refuses
+    // most requests anyway. A transfer works identically on localnet,
+    // devnet and mainnet, which is what an operator would really do.
+    {
+        const fund = new Transaction().add(SystemProgram.transfer({
+            fromPubkey: owner.publicKey,
+            toPubkey: device.publicKey,
+            lamports: LAMPORTS_PER_SOL / 20,   // 0.05 SOL: fees + epoch-account rent
+        }));
+        await sendAndConfirmTransaction(connection, fund, [owner]);
+    }
 
     // expected_heartbeats = epoch_duration / heartbeat_interval. Send at
     // least that many, or uptime lands in a tier that pays zero and

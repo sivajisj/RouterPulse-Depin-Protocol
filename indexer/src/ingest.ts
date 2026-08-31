@@ -3,6 +3,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import { decodeTransactionEvents } from "./eventParser";
 import { applyEventToProjections } from "./projections";
+import { withRetry } from "./retry";
 import { EventPublisher } from "./publisher";
 
 /// Fetches, decodes, and applies every event in one transaction.
@@ -28,10 +29,15 @@ export async function processSignature(
 ): Promise<number> {
     const transactions = db.collection("transactions");
 
-    const tx = await connection.getTransaction(signature, {
-        commitment: "confirmed",
-        maxSupportedTransactionVersion: 0,
-    });
+    // Retried: public RPC endpoints throttle this call hard during
+    // backfill, and an unretried 429 previously killed the process.
+    const tx = await withRetry(
+        () => connection.getTransaction(signature, {
+            commitment: "confirmed",
+            maxSupportedTransactionVersion: 0,
+        }),
+        { label: `getTransaction ${signature.slice(0, 8)}` },
+    );
 
     // A null response is NOT a failed transaction — it usually means the
     // transaction isn't queryable yet, which happens routinely when a

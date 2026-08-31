@@ -2,6 +2,7 @@ import { ConfirmedSignatureInfo } from "@solana/web3.js";
 import { loadIdl, getConnection, getProgramId, getDb, closeDb, BACKFILL_PAGE_SIZE } from "./config";
 import { buildEventParser } from "./eventParser";
 import { processSignature } from "./ingest";
+import { withRetry } from "./retry";
 
 /// Walks every historical signature that has ever touched the program,
 /// oldest first, decoding and applying each one. Safe to run repeatedly
@@ -24,8 +25,11 @@ export async function runBackfill(): Promise<{ signatures: number; events: numbe
     const allSignatures: ConfirmedSignatureInfo[] = [];
     let before: string | undefined;
     for (;;) {
-        const page = await connection.getSignaturesForAddress(
-            programId, { before, limit: BACKFILL_PAGE_SIZE }, "confirmed"
+        const page = await withRetry(
+            () => connection.getSignaturesForAddress(
+                programId, { before, limit: BACKFILL_PAGE_SIZE }, "confirmed"
+            ),
+            { label: "getSignaturesForAddress" },
         );
         if (page.length === 0) break;
         allSignatures.push(...page);
