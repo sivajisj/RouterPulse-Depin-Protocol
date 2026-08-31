@@ -3,7 +3,9 @@
     "target": "ES2021",
     "module": "commonjs",
     "moduleResolution": "node",
-    "lib": ["ES2021"],
+    "lib": [
+      "ES2021"
+    ],
     "outDir": "dist",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -12,7 +14,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "declaration": false
+    "declaration": false,
+    "rootDir": "src"
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ]
 }

@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "REST + WebSocket API over the RouterPulse indexer's MongoDB data.",
   "scripts": {
-    "start": "ts-node -r tsconfig-paths/register src/main.ts",
+    "start": "node dist/main.js",
     "build": "tsc",
-    "test": "ts-node -r tsconfig-paths/register test/run.ts"
+    "test": "ts-node -r tsconfig-paths/register test/run.ts",
+    "test:load": "ts-node -r tsconfig-paths/register test/load.ts",
+    "start:dev": "ts-node -r tsconfig-paths/register src/main.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.3",
