@@ -105,11 +105,59 @@ export async function reconcileOnce(): Promise<{ routers: number; drifted: numbe
         );
     }
 
+    // ── epochs ────────────────────────────────────────────────────────
+    // Originally this function only reconciled `protocol` and `router`,
+    // which left a real hole: if a RouterEpochFinalized event was ever
+    // lost, nothing repaired it and the epoch stayed permanently wrong
+    // in Mongo — reward and uptime missing while the chain had them.
+    // That happened. Epoch records are the basis of every reward figure
+    // the dashboard shows, so they get the same treatment as routers:
+    // trust the chain, overwrite the projection.
+    const allEpochs = await program.account.routerEpoch.all();
+    let epochsDrifted = 0;
+
+    for (const { account } of allEpochs as any[]) {
+        const key = `${account.router.toBase58()}:${account.epochNumber.toString()}`;
+        const before = await db.collection("epochs").findOne({ _id: key as any });
+
+        const update = {
+            router:             account.router.toBase58(),
+            epochNumber:        account.epochNumber.toString(),
+            heartbeats:         account.heartbeats,
+            expectedHeartbeats: account.expectedHeartbeats,
+            uptimeBps:          account.uptimeBps,
+            rewardAmount:       account.rewardAmount.toString(),
+            slashAmount:        account.slashAmount.toString(),
+            finalized:          account.finalized,
+            claimed:            account.claimed,
+            slashed:            account.slashed,
+            reconciledAt:       new Date(),
+        };
+
+        // Missing `finalized` on a chain-finalized epoch is the exact
+        // signature of a dropped event, so it's worth naming loudly
+        // rather than silently patching.
+        if (!before || before.finalized !== update.finalized || before.rewardAmount !== update.rewardAmount) {
+            epochsDrifted++;
+            console.log(
+                `[reconcile] epoch drift ${key}: ` +
+                `finalized ${before?.finalized} -> ${update.finalized}, ` +
+                `reward ${before?.rewardAmount} -> ${update.rewardAmount}`
+            );
+        }
+
+        await db.collection("epochs").updateOne(
+            { _id: key as any }, { $set: update }, { upsert: true }
+        );
+    }
+
     console.log(
-        `[reconcile] protocol + ${allRouters.length} router(s) reconciled` +
-        (drifted ? ` (${drifted} had drifted from the event projection)` : "")
+        `[reconcile] protocol + ${allRouters.length} router(s) + ${allEpochs.length} epoch(s) reconciled` +
+        (drifted || epochsDrifted
+            ? ` (${drifted} router / ${epochsDrifted} epoch drifted from the event projection)`
+            : "")
     );
-    return { routers: allRouters.length, drifted };
+    return { routers: allRouters.length, drifted: drifted + epochsDrifted };
 }
 
 /// Runs immediately, then on a fixed interval. Returns the timer so the

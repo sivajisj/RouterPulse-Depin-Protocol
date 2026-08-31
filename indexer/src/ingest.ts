@@ -33,8 +33,29 @@ export async function processSignature(
         maxSupportedTransactionVersion: 0,
     });
 
-    if (!tx || tx.meta?.err) {
-        await claimSignature(transactions, signature, tx?.slot ?? null, tx?.blockTime ?? null, true, 0);
+    // A null response is NOT a failed transaction — it usually means the
+    // transaction isn't queryable yet, which happens routinely when a
+    // log notification arrives before the RPC will serve the transaction
+    // at this commitment. Claiming the signature here would be
+    // permanent: backfill skips anything already in `transactions`, so
+    // the events would be lost for good and the projection would stay
+    // silently wrong forever. Leave it unclaimed and let a retry or the
+    // next backfill pick it up.
+    //
+    // This was a real bug, not a hypothetical: a finalize_router_epoch
+    // transaction was dropped exactly this way, leaving an epoch marked
+    // `claimed` in Mongo while its reward and uptime were missing, with
+    // the chain showing it fully finalized.
+    if (!tx) {
+        console.warn(`[ingest] ${signature.slice(0, 12)}… not retrievable yet — leaving unclaimed for retry`);
+        return 0;
+    }
+
+    // A transaction that genuinely executed and reverted, on the other
+    // hand, is terminal: it emitted no events and never will, so record
+    // it so we stop reconsidering it.
+    if (tx.meta?.err) {
+        await claimSignature(transactions, signature, tx.slot, tx.blockTime ?? null, true, 0);
         return 0;
     }
 
