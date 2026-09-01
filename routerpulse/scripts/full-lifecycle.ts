@@ -17,11 +17,14 @@
  *   # local
  *   solana-test-validator --reset      # in another terminal
  *   anchor deploy
- *   npx ts-node --compiler-options '{"module":"commonjs"}' scripts/full-lifecycle.ts
+ *   npm run lifecycle
  *
  *   # devnet
- *   RPC_URL=https://api.devnet.solana.com npx ts-node \
- *     --compiler-options '{"module":"commonjs"}' scripts/full-lifecycle.ts
+ *   RPC_URL=https://api.devnet.solana.com npm run lifecycle
+ *
+ * The compiler options matter: this package's tsconfig targets es6/es2015,
+ * which has no BigInt literals and no `console` type. Hence the override
+ * baked into the npm script rather than left for the caller to rediscover.
  */
 import * as anchor from "@coral-xyz/anchor";
 import {
@@ -45,7 +48,7 @@ const EPOCH_DURATION = 120;
 
 let passed = 0, failed = 0;
 const ok   = (m: string) => { passed++; console.log(`   ✅ ${m}`); };
-const bad  = (m: string, e?: any) => {
+const fail = (m: string, e?: any) => {
     failed++;
     console.log(`   ❌ ${m}${e ? `\n      ${String(e?.message ?? e).split("\n")[0].slice(0, 160)}` : ""}`);
 };
@@ -148,7 +151,7 @@ async function main() {
     const gAcct: any = await program.account.router.fetch(good);
     gAcct.devicePubkey.toBase58() !== owner.publicKey.toBase58()
         ? ok("both registered; device key ≠ owner wallet — a stolen router cannot move funds")
-        : bad("device key equals the owner wallet");
+        : fail("device key equals the owner wallet");
 
     // Fund devices by transfer, not airdrop: airdrops only exist on test
     // clusters, and this is what a real operator would do anyway.
@@ -167,7 +170,7 @@ async function main() {
             router: good, protocol: protocolPda, device: goodDev.publicKey,
             routerEpoch: epochPda(good, e), systemProgram: SystemProgram.programId,
         }).signers([goodDev]).rpc();
-        bad("an uncollateralized router was allowed to activate");
+        fail("an uncollateralized router was allowed to activate");
     } catch {
         ok("uncollateralized router refused — heartbeat requires min_stake");
     }
@@ -183,7 +186,7 @@ async function main() {
     const staked = (await getAccount(connection, stakeVault)).amount - vaultBefore;
     staked === BigInt(toBase("20").toString())
         ? ok(`vault credited exactly ${fmt(staked)} RTP across both routers`)
-        : bad(`vault moved ${fmt(staked)}, expected 20`);
+        : fail(`vault moved ${fmt(staked)}, expected 20`);
 
     // ── 5. Divergent behaviour ────────────────────────────────────────
     act(5, "Uptime — the good router performs, the bad one goes dark");
@@ -202,7 +205,7 @@ async function main() {
     // Wrong signer must be refused.
     try {
         await beat(good, badDev);
-        bad("a foreign device key was able to heartbeat for another router");
+        fail("a foreign device key was able to heartbeat for another router");
     } catch { ok("heartbeat from the wrong device key rejected"); }
 
     // ── 6. Epoch closes ───────────────────────────────────────────────
@@ -225,10 +228,10 @@ async function main() {
     console.log(`      bad : ${bE.uptimeBps}bps → reward ${fmt(bE.rewardAmount)}, slash ${fmt(bE.slashAmount)}`);
     gE.rewardAmount.gtn(0) && gE.slashAmount.isZero()
         ? ok("good uptime earns full reward, no slash")
-        : bad("good router was not rewarded correctly");
+        : fail("good router was not rewarded correctly");
     bE.rewardAmount.isZero() && bE.slashAmount.gtn(0)
         ? ok("sub-70% uptime earns nothing AND is slashed — same tier table drives both")
-        : bad("bad router was not penalised correctly");
+        : fail("bad router was not penalised correctly");
 
     // ── 7. Claim mints nothing ────────────────────────────────────────
     act(7, "Claim — creates an entitlement, moves no tokens");
@@ -239,14 +242,14 @@ async function main() {
     }).rpc();
     (await getMint(connection, rewardMint)).supply === supplyBefore
         ? ok("supply unchanged — claiming grants rights, it does not mint")
-        : bad("supply moved during claim");
+        : fail("supply moved during claim");
 
     try {
         await program.methods.claimReward(new BN(epoch)).accountsPartial({
             router: good, protocol: protocolPda, routerEpoch: epochPda(good, epoch),
             vesting: vestPda(good, epoch), owner: owner.publicKey, systemProgram: SystemProgram.programId,
         }).rpc();
-        bad("the same epoch was claimed twice");
+        fail("the same epoch was claimed twice");
     } catch { ok("double-claim rejected"); }
 
     // ── 8. Vesting is the only mint path ──────────────────────────────
@@ -262,7 +265,7 @@ async function main() {
     const v: any = await program.account.rewardVesting.fetch(vestPda(good, epoch));
     gained > 0n && gained < BigInt(v.totalAmount.toString())
         ? ok(`released ${fmt(gained)} of ${fmt(v.totalAmount)} — a partial slice, as linear vesting should`)
-        : bad(`released ${fmt(gained)} of ${fmt(v.totalAmount)} — expected a partial amount`);
+        : fail(`released ${fmt(gained)} of ${fmt(v.totalAmount)} — expected a partial amount`);
 
     // ── 9. Slash and burn ─────────────────────────────────────────────
     act(9, "Slashing — collateral actually moves, then is destroyed");
@@ -274,14 +277,14 @@ async function main() {
     const moved = (await getAccount(connection, treasury)).amount - treasuryBefore;
     moved === BigInt(bE.slashAmount.toString())
         ? ok(`${fmt(moved)} RTP moved from stake vault to treasury`)
-        : bad(`treasury gained ${fmt(moved)}, expected ${fmt(bE.slashAmount)}`);
+        : fail(`treasury gained ${fmt(moved)}, expected ${fmt(bE.slashAmount)}`);
 
     try {
         await program.methods.slashRouter(new BN(epoch)).accountsPartial({
             router: bad, protocol: protocolPda, routerEpoch: epochPda(bad, epoch),
             stake: stakePda(bad), rewardMint, stakeVault, treasury, tokenProgram: TOKEN_PROGRAM_ID,
         }).rpc();
-        bad("the same epoch was slashed twice");
+        fail("the same epoch was slashed twice");
     } catch { ok("double-slash rejected"); }
 
     const supplyPreBurn = (await getMint(connection, rewardMint)).supply;
@@ -292,7 +295,7 @@ async function main() {
     const supplyPostBurn = (await getMint(connection, rewardMint)).supply;
     supplyPostBurn === supplyPreBurn - moved
         ? ok(`burned ${fmt(moved)} — the penalty is deflationary, not a transfer to the treasury operator`)
-        : bad("burn did not reduce supply correctly");
+        : fail("burn did not reduce supply correctly");
 
     // ── 10. Device recovery ───────────────────────────────────────────
     act(10, "Device recovery — rotate a compromised key");
@@ -302,11 +305,11 @@ async function main() {
     const rotated: any = await program.account.router.fetch(good);
     rotated.devicePubkey.toBase58() === replacement.publicKey.toBase58() && rotated.deviceKeyVersion >= 1
         ? ok(`rotated to a new device, version ${rotated.deviceKeyVersion} — stake and history intact`)
-        : bad("rotation did not take effect");
+        : fail("rotation did not take effect");
 
     try {
         await beat(good, goodDev);
-        bad("the retired device key still works — rotation does not contain a compromise");
+        fail("the retired device key still works — rotation does not contain a compromise");
     } catch { ok("the old device key is dead"); }
 
     // ── 11. Governance ────────────────────────────────────────────────
@@ -315,7 +318,7 @@ async function main() {
         .accountsPartial({ protocol: protocolPda, authority: owner.publicKey }).rpc();
     try {
         await beat(good, replacement);
-        bad("heartbeats still accepted while the protocol was paused");
+        fail("heartbeats still accepted while the protocol was paused");
     } catch { ok("pause actually blocks heartbeats"); }
     await program.methods.resumeProtocol()
         .accountsPartial({ protocol: protocolPda, authority: owner.publicKey }).rpc();
@@ -337,7 +340,7 @@ async function main() {
         }
     }
     sawRate ? ok("governance actions emit an auditable event, not just a log line")
-            : bad("no RewardRateUpdated event emitted");
+            : fail("no RewardRateUpdated event emitted");
     await program.methods.updateRewardRate(new BN(2_000_000))
         .accountsPartial({ protocol: protocolPda, authority: owner.publicKey }).rpc();
 
@@ -352,7 +355,7 @@ async function main() {
     const out = vb - (await getAccount(connection, stakeVault)).amount;
     out === BigInt(toBase("5").toString())
         ? ok(`withdrew exactly ${fmt(out)} RTP`)
-        : bad(`vault moved ${fmt(out)}, expected 5`);
+        : fail(`vault moved ${fmt(out)}, expected 5`);
 
     // ── 13. Supply reconciles ─────────────────────────────────────────
     act(13, "Reconciliation — does the money add up?");
@@ -361,7 +364,7 @@ async function main() {
     const expectedSupply = BigInt(fp.totalMinted.toString()) - BigInt(fp.totalBurned.toString());
     finalMint.supply === expectedSupply
         ? ok(`on-chain supply ${fmt(finalMint.supply)} == totalMinted − totalBurned`)
-        : bad(`supply ${fmt(finalMint.supply)} != minted−burned ${fmt(expectedSupply)}`);
+        : fail(`supply ${fmt(finalMint.supply)} != minted−burned ${fmt(expectedSupply)}`);
     note(`staked ${fmt(fp.totalStaked)} · slashed ${fmt(fp.totalSlashed)} · burned ${fmt(fp.totalBurned)}`);
 
     console.log(`\n${failed === 0 ? "\x1b[32m✅" : "\x1b[31m❌"} ${passed} passed, ${failed} failed\x1b[0m\n`);
