@@ -18,765 +18,392 @@
   --mono:'JetBrains Mono',monospace;
   --sans:'Outfit',sans-serif;
 }
-*{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--sans);color:var(--tx);}
-#app{position:fixed;inset:0;display:flex;flex-direction:column;z-index:1;}
-#topbar{
-  height:50px;display:flex;align-items:center;justify-content:space-between;
-  padding:0 28px;border-bottom:1px solid var(--b2);
-  background:rgba(7,7,16,0.85);backdrop-filter:blur(20px);flex-shrink:0;
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);overflow:hidden;height:100vh}
+.deck{height:100vh;position:relative}
+.slide{
+  position:absolute;inset:0;padding:54px 68px 88px;
+  display:none;flex-direction:column;overflow-y:auto;
 }
-.brand{display:flex;align-items:center;gap:10px;}
-.bdot{width:7px;height:7px;border-radius:50%;background:var(--p);box-shadow:0 0 10px var(--p);}
-.bname{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx);letter-spacing:.05em;}
-.bsep{color:var(--mu);margin:0 3px;}
-.bsub{font-family:var(--mono);font-size:10px;color:var(--mu);letter-spacing:.08em;}
-.cpill{padding:4px 14px;border-radius:100px;background:var(--s2);border:1px solid var(--b2);font-family:var(--mono);font-size:10px;color:var(--mu2);letter-spacing:.06em;}
-.tright{display:flex;align-items:center;gap:8px;}
-.btn{padding:5px 16px;border-radius:100px;border:1px solid var(--b2);background:var(--s2);color:var(--tx);font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;}
-.btn:hover{background:var(--s3);border-color:var(--b3);}
-.btn.go{background:var(--p2);border-color:var(--p);color:#fff;}
-.btn.go:hover{opacity:.85;}
-.kh{font-size:10px;color:var(--mu);font-family:var(--mono);}
-#prog{height:2px;background:var(--b1);flex-shrink:0;}
-#pf{height:100%;background:linear-gradient(90deg,var(--p2),var(--t));transition:width .3s ease;}
-#stage{flex:1;position:relative;overflow:hidden;}
-.slide{position:absolute;inset:0;padding:36px 48px;display:none;flex-direction:column;opacity:0;}
-.slide.active{display:flex;animation:sIn .28s ease forwards;}
-@keyframes sIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-.tag{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--p);display:flex;align-items:center;gap:8px;margin-bottom:14px;}
-.tag::before{content:'';width:18px;height:1px;background:var(--p);}
-.tag::after{content:'';flex:1;height:1px;background:var(--b2);}
-.h1{font-size:48px;font-weight:700;line-height:1.05;margin-bottom:8px;letter-spacing:-.02em;}
-.h2{font-size:30px;font-weight:700;line-height:1.1;margin-bottom:8px;letter-spacing:-.01em;}
-.h1 .p,.h2 .p{color:var(--p);}
-.h1 .t,.h2 .t{color:var(--t);}
-.h1 .y,.h2 .y{color:var(--y);}
-.h1 .r,.h2 .r{color:var(--r);}
-.h1 .g,.h2 .g{color:var(--g);}
-.sub{font-size:14px;color:var(--mu2);line-height:1.75;font-weight:300;max-width:600px;margin-bottom:24px;}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
-.card{background:var(--s2);border:1px solid var(--b1);border-radius:12px;padding:16px 18px;}
-.card.cp{border-color:rgba(139,127,255,.22);background:var(--p3);}
-.card.ct{border-color:rgba(63,216,204,.22);background:var(--t2);}
-.card.cy{border-color:rgba(247,201,75,.22);background:var(--y2);}
-.card.cr{border-color:rgba(255,107,122,.22);background:var(--r2);}
-.card.cg{border-color:rgba(6,245,160,.18);background:var(--g2);}
-.ch{font-family:var(--mono);font-size:9px;color:var(--p);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;}
-.ch.t{color:var(--t);}.ch.y{color:var(--y);}.ch.r{color:var(--r);}.ch.g{color:var(--g);}
-.ct2{font-size:13px;font-weight:600;margin-bottom:5px;}
-.cb{font-size:11.5px;color:var(--mu2);line-height:1.75;}
-.pills{display:flex;flex-wrap:wrap;gap:7px;}
-.pill{padding:4px 13px;border-radius:100px;font-family:var(--mono);font-size:10px;font-weight:500;border:1px solid;letter-spacing:.03em;}
-.pp{border-color:var(--p);color:var(--p);background:var(--p3);}
-.pt{border-color:var(--t);color:var(--t);background:var(--t2);}
-.py{border-color:var(--y);color:var(--y);background:var(--y2);}
-.pr{border-color:var(--r);color:var(--r);background:var(--r2);}
-.pg{border-color:var(--g);color:var(--g);background:var(--g2);}
-.stats{display:flex;gap:12px;margin-top:20px;}
-.stat{flex:1;background:var(--s2);border:1px solid var(--b2);border-radius:12px;padding:16px;text-align:center;}
-.sn{font-family:var(--mono);font-size:32px;font-weight:700;color:var(--p);line-height:1;}
-.sl{font-size:10px;color:var(--mu);margin-top:5px;letter-spacing:.04em;}
-.code{background:#04040c;border:1px solid var(--b2);border-radius:10px;padding:14px 16px;font-family:var(--mono);font-size:11px;line-height:1.85;color:#b0b0d0;overflow-x:auto;}
-.kw{color:var(--p);}.fn{color:var(--t);}.st{color:var(--y);}.cm{color:#404060;}.nu{color:var(--r);}.ty{color:var(--g);}
-.fml{background:#04040c;border:1px solid rgba(139,127,255,.28);border-radius:10px;padding:12px 16px;font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--t);margin:7px 0;}
-.fml .res{color:var(--g);font-weight:700;}.fml .cmt{color:var(--mu);}.fml .val{color:var(--y);}
-.hl{border-left:2px solid var(--p);border-radius:0 7px 7px 0;padding:9px 13px;font-size:12px;color:var(--tx);line-height:1.7;margin:8px 0;background:rgba(139,127,255,.05);}
-.hl.t{border-color:var(--t);background:rgba(63,216,204,.05);}
-.hl.y{border-color:var(--y);background:rgba(247,201,75,.05);}
-.hl.g{border-color:var(--g);background:rgba(6,245,160,.04);}
-.hl.r{border-color:var(--r);background:rgba(255,107,122,.05);}
-.tw{overflow-x:auto;border-radius:10px;border:1px solid var(--b2);background:var(--s2);}
-table{width:100%;border-collapse:collapse;font-size:11.5px;}
-th{padding:9px 12px;font-family:var(--mono);font-size:9px;color:var(--mu);letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--b2);text-align:left;}
-td{padding:8px 12px;border-bottom:1px solid var(--b1);color:var(--tx);vertical-align:middle;}
-tr:last-child td{border:none;}
-tr:hover td{background:rgba(255,255,255,.015);}
-.mn{font-family:var(--mono);font-size:10.5px;color:var(--t);}
-.tc{text-align:center;}
-.dg{color:var(--g);}.dy{color:var(--y);}.dr{color:var(--r);}.dm{color:var(--mu);}
-/* flow nodes */
-.fnode{background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:10px 13px;transition:border-color .2s;}
-.fnode.fp{border-color:rgba(139,127,255,.45);background:var(--p3);}
-.fnode.ft{border-color:rgba(63,216,204,.45);background:var(--t2);}
-.fnode.fy{border-color:rgba(247,201,75,.45);background:var(--y2);}
-.fnode.fr{border-color:rgba(255,107,122,.45);background:var(--r2);}
-.fnode.fg{border-color:rgba(6,245,160,.4);background:var(--g2);}
-.fn-num{font-family:var(--mono);font-size:9px;color:var(--mu);margin-bottom:3px;letter-spacing:.08em;}
-.fn-t{font-size:12px;font-weight:600;color:var(--tx);margin-bottom:2px;}
-.fn-d{font-size:11px;color:var(--mu2);line-height:1.55;}
-.fdarr{height:22px;display:flex;align-items:center;justify-content:center;color:var(--mu);font-size:14px;margin-left:calc(50% - 8px);}
-/* arch */
-.alayer{flex:1;display:flex;flex-direction:column;gap:6px;}
-.atitle{font-family:var(--mono);font-size:8px;color:var(--mu);letter-spacing:.1em;text-transform:uppercase;text-align:center;margin-bottom:3px;}
-.abox{display:flex;flex-direction:column;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:9px 11px;font-size:11px;text-align:center;gap:3px;}
-.abox.ap{border-color:rgba(139,127,255,.4);background:var(--p3);color:var(--p);}
-.abox.at{border-color:rgba(63,216,204,.4);background:var(--t2);color:var(--t);}
-.abox.ay{border-color:rgba(247,201,75,.4);background:var(--y2);color:var(--y);}
-.abox.ar{border-color:rgba(255,107,122,.4);background:var(--r2);color:var(--r);}
-.abox.ag{border-color:rgba(6,245,160,.35);background:var(--g2);color:var(--g);}
-.abox small{font-size:9.5px;color:var(--mu);}
-.aarr{width:28px;display:flex;align-items:center;justify-content:center;color:var(--mu);font-size:16px;flex-shrink:0;margin-top:28px;}
-/* pdas */
-.pdab{background:var(--s2);border-radius:10px;border:1px solid var(--b2);overflow:hidden;margin-bottom:10px;}
-.pdah{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b1);}
-.pdn{font-family:var(--mono);font-size:12px;font-weight:700;}
-.pds{font-family:var(--mono);font-size:9.5px;color:var(--mu);}
-.pdfs{padding:9px 14px;display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;}
-.pdf{display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:10.5px;}
-.pfn{font-family:var(--mono);color:var(--t);}
-.pft{color:var(--mu);}
-/* status */
-.sflow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0;}
-.sbox{padding:5px 11px;border-radius:7px;font-family:var(--mono);font-size:10px;font-weight:700;border:1px solid;}
-.si{border-color:rgba(139,127,255,.6);color:var(--p);background:var(--p3);}
-.sa{border-color:rgba(6,245,160,.6);color:var(--g);background:var(--g2);}
-.ss{border-color:rgba(247,201,75,.6);color:var(--y);background:var(--y2);}
-.sd{border-color:rgba(255,107,122,.6);color:var(--r);background:var(--r2);}
-.sarr{color:var(--mu);font-size:11px;}
-/* attack */
-.atk{background:rgba(255,107,122,.04);border:1px solid rgba(255,107,122,.18);border-radius:9px;padding:12px 14px;}
-.atk-t{font-family:var(--mono);font-size:9px;color:var(--r);margin-bottom:4px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;}
-.atk-w{font-size:10.5px;color:var(--mu2);margin-bottom:5px;line-height:1.5;}
-.atk-f{font-family:var(--mono);font-size:9.5px;color:var(--g);background:rgba(6,245,160,.07);padding:3px 7px;border-radius:5px;display:inline-block;}
-/* dots */
-#dotbar{height:38px;display:flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--b2);cursor:pointer;transition:all .2s;}
-.dot.active{background:var(--p);box-shadow:0 0 8px var(--p);transform:scale(1.4);}
-.dot:hover{background:var(--mu2);}
-.corner{position:absolute;bottom:16px;right:24px;font-family:var(--mono);font-size:9px;color:var(--mu);opacity:.35;}
-.gorb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;}
+.slide.active{display:flex;animation:in .32s ease}
+@keyframes in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+.kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--p);text-transform:uppercase;margin-bottom:14px}
+h1{font-size:52px;font-weight:700;line-height:1.08;letter-spacing:-.02em;margin-bottom:18px}
+h2{font-size:34px;font-weight:600;letter-spacing:-.015em;margin-bottom:20px}
+h3{font-size:17px;font-weight:600;margin-bottom:8px}
+p{color:var(--mu2);font-size:16px;line-height:1.62;max-width:74ch;margin-bottom:12px}
+.lead{font-size:21px;color:var(--tx);line-height:1.55;max-width:70ch}
+strong{color:var(--tx);font-weight:600}
+em{color:var(--p);font-style:normal;font-weight:500}
+code{font-family:var(--mono);font-size:.9em;background:var(--s3);padding:2px 6px;border-radius:4px;color:var(--t)}
+
+.grid{display:grid;gap:14px;margin-top:8px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.card{background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:18px 20px}
+.card.accent{border-color:var(--b3);background:var(--s2)}
+.card h3{color:var(--tx)}
+.card p{font-size:14px;margin:0;color:var(--mu2)}
+
+.stat{background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:20px;text-align:center}
+.stat .n{font-family:var(--mono);font-size:32px;font-weight:700;color:var(--p);line-height:1}
+.stat .l{font-size:12px;color:var(--mu);margin-top:8px;letter-spacing:.03em}
+
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14.5px}
+th{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);padding:9px 12px;border-bottom:1px solid var(--b2)}
+td{padding:10px 12px;border-bottom:1px solid var(--b1);color:var(--mu2)}
+td:first-child{color:var(--tx);font-weight:500}
+tr:last-child td{border-bottom:none}
+.bad{color:var(--r)!important}.good{color:var(--g)!important}.warn{color:var(--y)!important}
+
+pre{background:var(--s1);border:1px solid var(--b1);border-left:2px solid var(--p);
+  border-radius:8px;padding:16px 18px;font-family:var(--mono);font-size:13px;
+  line-height:1.65;color:var(--mu2);overflow-x:auto;margin:10px 0}
+pre .c{color:var(--mu)}
+pre .k{color:var(--p)}
+pre .v{color:var(--t)}
+
+.quote{border-left:2px solid var(--p);padding:6px 0 6px 20px;margin:16px 0;
+  font-size:19px;line-height:1.55;color:var(--tx);max-width:72ch}
+.quote .who{display:block;font-size:13px;color:var(--mu);margin-top:10px;font-family:var(--mono)}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:4px 10px;
+  border-radius:20px;margin:3px 4px 3px 0;border:1px solid var(--b2);color:var(--mu2)}
+.pill.on{background:var(--p3);border-color:var(--p);color:var(--p)}
+.pill.t{background:var(--t2);border-color:var(--t);color:var(--t)}
+.pill.g{background:var(--g2);border-color:var(--g);color:var(--g)}
+
+.flow{font-family:var(--mono);font-size:12.5px;line-height:1.9;color:var(--mu2);
+  background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:18px 22px;overflow-x:auto}
+.flow .hi{color:var(--p)}
+.flow .ok{color:var(--g)}
+.flow .no{color:var(--r)}
+
+.bar{position:fixed;left:0;right:0;bottom:0;height:60px;background:var(--s1);
+  border-top:1px solid var(--b1);display:flex;align-items:center;
+  justify-content:space-between;padding:0 26px;z-index:20}
+.dots{display:flex;gap:7px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--b3);cursor:pointer;transition:.2s}
+.dot.active{background:var(--p);transform:scale(1.4)}
+.counter{font-family:var(--mono);font-size:11px;color:var(--mu);letter-spacing:.1em}
+.hint{font-family:var(--mono);font-size:10.5px;color:var(--mu)}
+.progress{position:fixed;top:0;left:0;height:2px;background:var(--p);z-index:30;transition:width .3s}
+.brand{position:fixed;top:20px;right:26px;font-family:var(--mono);font-size:11px;color:var(--mu);letter-spacing:.1em;z-index:20}
+a{color:var(--t);text-decoration:none;border-bottom:1px solid rgba(63,216,204,.3)}
+.mt{margin-top:18px}
 </style>
 </head>
 <body>
-<div id="app">
-<div id="topbar">
-  <div class="brand">
-    <div class="bdot"></div>
-    <span class="bname">RouterPulse</span>
-    <span class="bsep">/</span>
-    <span class="bsub">SOLANA &middot; DEPIN &middot; RUST + ANCHOR</span>
-  </div>
-  <span class="cpill" id="counter">SLIDE 01 / 13</span>
-  <div class="tright">
-    <span class="kh">&#8592; &#8594;</span>
-    <button class="btn" onclick="prev()">&#8592; Prev</button>
-    <button class="btn go" onclick="next()">Next &#8594;</button>
-  </div>
-</div>
-<div id="prog"><div id="pf" style="width:7.7%"></div></div>
-<div id="stage">
+<div class="progress" id="pf"></div>
+<div class="brand">ROUTERPULSE</div>
+<div class="deck">
 
-<!-- 01 TITLE -->
-<div class="slide active" id="s1">
-  <div class="gorb" style="width:380px;height:380px;background:rgba(139,127,255,.1);top:-80px;left:-60px;"></div>
-  <div class="gorb" style="width:260px;height:260px;background:rgba(63,216,204,.07);bottom:-40px;right:40px;"></div>
-  <div class="tag">DePIN Protocol &mdash; Built for Dabba&rsquo;s Problem</div>
-  <div class="h1"><span class="p">Router</span><span class="t">Pulse</span></div>
-  <div class="sub">A trustless Wi-Fi router uptime tracking and automated reward distribution protocol on Solana &mdash; cryptographic proof replacing self-reported uptime.</div>
-  <div class="pills">
-    <span class="pill pp">Rust + Anchor 0.30</span>
-    <span class="pill pt">Solana BPF</span>
-    <span class="pill py">Node.js Simulator</span>
-    <span class="pill pg">20 Tests Passing</span>
-    <span class="pill pr">DePIN Architecture</span>
+<!-- 1 ─────────────────────────────────────────────── -->
+<section class="slide active" id="s1">
+  <div class="kicker">Solana · DePIN · Full Stack</div>
+  <h1>RouterPulse</h1>
+  <p class="lead">
+    A router earns money by proving it was online.<br>
+    <em>Every word in that sentence had to be made unfakeable.</em>
+  </p>
+  <div class="grid g4 mt">
+    <div class="stat"><div class="n">18</div><div class="l">INSTRUCTIONS</div></div>
+    <div class="stat"><div class="n">87</div><div class="l">AUTOMATED TESTS</div></div>
+    <div class="stat"><div class="n">19</div><div class="l">ON-CHAIN EVENTS</div></div>
+    <div class="stat"><div class="n">6</div><div class="l">REAL BUGS FOUND</div></div>
   </div>
-  <div class="stats">
-    <div class="stat"><div class="sn">3</div><div class="sl">PDAs designed</div></div>
-    <div class="stat"><div class="sn" style="color:var(--t)">8</div><div class="sl">Instructions built</div></div>
-    <div class="stat"><div class="sn" style="color:var(--g)">20</div><div class="sl">Tests passing</div></div>
-    <div class="stat"><div class="sn" style="color:var(--y)">3</div><div class="sl">Routers simulated</div></div>
-    <div class="stat"><div class="sn" style="color:var(--r)">8</div><div class="sl">Attack vectors blocked</div></div>
+  <p class="mt" style="font-family:var(--mono);font-size:12.5px">
+    Live on devnet · <a href="https://web-indol-xi-67.vercel.app">dashboard</a> ·
+    <a href="https://routerpulse-api.onrender.com">api</a>
+  </p>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────── -->
+<section class="slide" id="s2">
+  <div class="kicker">The problem</div>
+  <h2>Operators self-report uptime</h2>
+  <p class="lead">
+    Wi-Fi infrastructure networks pay operators for keeping hardware online.
+    The payer has no independent way to verify that the hardware actually
+    <em>was</em> online — so the number that determines payment is supplied
+    by the party being paid.
+  </p>
+  <div class="grid g3 mt">
+    <div class="card"><h3>Trust</h3><p>The network takes the operator's word for uptime.</p></div>
+    <div class="card"><h3>No consequence</h3><p>Underperforming costs nothing, so nothing enforces quality.</p></div>
+    <div class="card"><h3>No audit trail</h3><p>Disputes have no shared record to resolve against.</p></div>
   </div>
-  <div class="corner">01</div>
-</div>
+  <p class="mt">RouterPulse replaces the self-report with a signed heartbeat the
+  operator cannot forge, collateral they can lose, and an on-chain record
+  anyone can check.</p>
+</section>
 
-<!-- 02 PROBLEM -->
-<div class="slide" id="s2">
-  <div class="tag">Problem statement</div>
-  <div class="h2">The <span class="p">trust</span> gap</div>
-  <div class="g2" style="flex:1;margin-top:6px;">
-    <div class="card cr" style="display:flex;flex-direction:column;gap:9px;">
-      <div class="ch r">Traditional model &mdash; broken</div>
-      <div style="background:rgba(255,107,122,.07);border-radius:7px;padding:9px 11px;font-size:11.5px;line-height:1.85;color:var(--mu2);">
-        Operator &rarr; <em style="color:var(--tx)">&ldquo;My router was online 24/7&rdquo;</em><br>
-        Company &nbsp;&rarr; <em style="color:var(--tx)">&ldquo;Okay, we trust you&rdquo;</em>
-      </div>
-      <div style="font-size:11.5px;color:var(--mu2);line-height:2.1;">
-        &#10007; &nbsp;No verifiable proof of uptime<br>
-        &#10007; &nbsp;Operators can lie to earn more<br>
-        &#10007; &nbsp;Companies can underpay in disputes<br>
-        &#10007; &nbsp;No neutral audit trail<br>
-        &#10007; &nbsp;Every payment requires trust
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="card cg">
-        <div class="ch g">RouterPulse model &mdash; trustless</div>
-        <div style="font-size:11.5px;color:var(--mu2);line-height:2.1;">
-          &#10003; &nbsp;Signed heartbeat every N seconds on-chain<br>
-          &#10003; &nbsp;Timestamp stored in PDA &mdash; immutable<br>
-          &#10003; &nbsp;Rewards auto-calculated from verifiable proof<br>
-          &#10003; &nbsp;Anyone can audit any router&rsquo;s history<br>
-          &#10003; &nbsp;Blockchain is the neutral source of truth
-        </div>
-      </div>
-      <div class="hl t">Key insight: <strong>Clock::get()</strong> is set by Solana validators &mdash; impossible to forge by any caller. This single fact makes the entire protocol trustless.</div>
-      <div class="card cp">
-        <div class="ch">Real-world analogy</div>
-        <div class="cb">Heartbeat = router punching a timestamped attendance card that neither operator nor company can alter after the fact. The validator signs it.</div>
-      </div>
-    </div>
+<!-- 3 ─────────────────────────────────────────────── -->
+<section class="slide" id="s3">
+  <div class="kicker">The bug that caused a rewrite</div>
+  <h2>The first version paid on a lifetime average</h2>
+  <pre><span class="c">// original — looks reasonable, is exploitable</span>
+reward = elapsed_time × reward_rate × <span class="k">lifetime_uptime_percentage</span></pre>
+  <p>
+    <code>lifetime_uptime_percentage</code> came from counters on the router
+    account. When a router stopped sending heartbeats, <strong>nothing
+    recomputed it</strong> — there is no cron on a blockchain.
+  </p>
+  <div class="card accent mt">
+    <h3 class="bad">The exploit</h3>
+    <p>Build a good history, then go dark permanently. The average still reads
+    ~100%, and rewards keep accruing for time spent offline.</p>
   </div>
-  <div class="corner">02</div>
-</div>
+  <p class="mt"><strong>The fix wasn't a patch — it was a re-architecture.</strong>
+  Rewards are now scoped to a <em>closed epoch</em>. An epoch a router didn't
+  participate in has no record, so there is nothing to claim. The exploit
+  isn't guarded against; it's structurally impossible.</p>
+</section>
 
-<!-- 03 ARCHITECTURE -->
-<div class="slide" id="s3">
-  <div class="tag">System overview</div>
-  <div class="h2">Three-layer <span class="t">architecture</span></div>
-  <div style="flex:1;display:flex;align-items:stretch;gap:0;margin-top:10px;">
-    <div class="alayer">
-      <div class="atitle">Simulator &mdash; Node.js</div>
-      <div class="abox at">router-mumbai-001<small>5% fail rate</small></div>
-      <div class="abox at">router-delhi-001<small>30% fail rate</small></div>
-      <div class="abox at">router-bangalore-001<small>60% fail rate</small></div>
-      <div style="margin-top:7px;font-size:9px;color:var(--mu);font-family:var(--mono);text-align:center;">accountsPartial() avoids<br>Anchor auto-resolve recursion</div>
-    </div>
-    <div class="aarr">&rarr;</div>
-    <div class="alayer">
-      <div class="atitle">Anchor Program &mdash; Rust BPF</div>
-      <div class="abox ap">initialize_protocol</div>
-      <div class="abox ap">register_router</div>
-      <div class="abox ag">heartbeat &larr; core</div>
-      <div class="abox ap">claim_reward</div>
-      <div class="abox ap">apply_penalty</div>
-      <div class="abox ap">admin controls (&times;4)</div>
-      <div class="abox" style="font-size:10px;color:var(--mu);">uptime.rs &mdash; pure math</div>
-    </div>
-    <div class="aarr">&rarr;</div>
-    <div class="alayer">
-      <div class="atitle">On-chain PDAs</div>
-      <div class="abox ay" style="padding:12px;">
-        <strong style="font-family:var(--mono);font-size:10px;">Protocol PDA</strong>
-        <small>[b&ldquo;protocol&rdquo;]</small>
-        <small>global singleton config</small>
-      </div>
-      <div class="abox ay" style="padding:12px;">
-        <strong style="font-family:var(--mono);font-size:10px;">Router PDA</strong>
-        <small>[b&ldquo;router&rdquo;,owner,id]</small>
-        <small>one per physical device</small>
-      </div>
-      <div class="abox ay" style="padding:12px;">
-        <strong style="font-family:var(--mono);font-size:10px;">Vault PDA</strong>
-        <small>[b&ldquo;reward_vault&rdquo;,protocol]</small>
-        <small>SOL treasury</small>
-      </div>
-    </div>
-    <div class="aarr">&rarr;</div>
-    <div class="alayer">
-      <div class="atitle">Off-chain Backend</div>
-      <div class="abox ar">Event listener</div>
-      <div class="abox ar">REST API</div>
-      <div class="abox ar">MongoDB</div>
-      <div class="abox ar">ClickHouse</div>
-      <div class="abox ar">Redis cache</div>
-      <div style="margin-top:7px;font-size:9px;color:var(--mu);font-family:var(--mono);text-align:center;">Explorer APIs<br>staking + token burn data</div>
-    </div>
+<!-- 4 ─────────────────────────────────────────────── -->
+<section class="slide" id="s4">
+  <div class="kicker">Before / after</div>
+  <h2>What actually changed</h2>
+  <table>
+    <tr><th>Dimension</th><th>Prototype</th><th>Now</th></tr>
+    <tr><td>Reward basis</td><td class="bad">Lifetime average</td><td class="good">Epoch-scoped record</td></tr>
+    <tr><td>Reward asset</td><td class="bad">Raw SOL from a vault</td><td class="good">SPL token, PDA-owned mint</td></tr>
+    <tr><td>Heartbeat signer</td><td class="bad">Operator's wallet</td><td class="good">Separate device key</td></tr>
+    <tr><td>Collateral</td><td class="bad">None</td><td class="good">Staking gates activation</td></tr>
+    <tr><td>Downtime penalty</td><td class="bad">Score decrement</td><td class="good">Real token slashing</td></tr>
+    <tr><td>Payout</td><td class="bad">Immediate</td><td class="good">Cliff + linear vesting</td></tr>
+    <tr><td>Supply control</td><td class="bad">Unbounded vault</td><td class="good">Per-epoch emission cap</td></tr>
+    <tr><td>Emergency pause</td><td class="bad">Flag existed, unenforced</td><td class="good">Enforced on heartbeat + claim</td></tr>
+    <tr><td>Off-chain</td><td class="bad">Nothing</td><td class="good">Indexer + API + dashboard</td></tr>
+    <tr><td>Tests</td><td class="bad">~20</td><td class="good">87</td></tr>
+  </table>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────── -->
+<section class="slide" id="s5">
+  <div class="kicker">Architecture</div>
+  <h2>Solana is the source of truth. Always.</h2>
+  <div class="flow">        Solana devnet  <span class="hi">← source of truth</span>
+              │
+   ┌──────────┴───────────┐
+ backfill            live websocket
+(getSignaturesForAddress)  (onLogs)
+   └──────────┬───────────┘
+              ▼
+      <span class="hi">processSignature()</span>   <span class="ok">← ONE code path, idempotent</span>
+              │
+   ┌──────────┼────────────────┐
+   ▼          ▼                ▼
+ events    routers/epochs   transactions
+ (append-   (projections)   (idempotency gate)
+  only)          ▲
+                 │
+        <span class="hi">reconcile.ts</span> — re-reads chain accounts
+        on an interval, overwrites the
+        projection, logs drift
+                 │
+                 ▼
+   Redis pub/sub ─► NestJS API ─► Next.js dashboard</div>
+  <p class="mt"><strong>MongoDB is a projection, never the truth.</strong>
+  Reconciliation exists because the event stream can lose data — and in this
+  project it <em>demonstrably did</em>.</p>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────── -->
+<section class="slide" id="s6">
+  <div class="kicker">Lifecycle</div>
+  <h2>From onboarding to payout</h2>
+  <div class="grid g2">
+    <div class="card"><h3>① Two identities</h3><p>A <em>device key</em> signs heartbeats, distinct from the owner wallet. Steal the hardware and you get a key that can only say "I'm alive" — never move funds.</p></div>
+    <div class="card"><h3>② Collateral gates activation</h3><p><code>heartbeat</code> refuses to activate a router below <code>min_stake</code>. You cannot slash someone who staked nothing.</p></div>
+    <div class="card"><h3>③ Heartbeats, scoped</h3><p>Each lands in the <code>RouterEpoch</code> PDA for the current window — not a running total.</p></div>
+    <div class="card"><h3>④ Finalization</h3><p>Permissionless crank. Reads only public state, writes a pure function of it — so anyone can close an epoch.</p></div>
+    <div class="card"><h3>⑤ Claim mints nothing</h3><p>Creates a vesting entitlement. Total supply does not move.</p></div>
+    <div class="card"><h3>⑥ Vesting is the only mint path</h3><p><code>claim_vested</code> is the <strong>sole instruction that increases supply</strong>, and only by what has actually vested.</p></div>
   </div>
-  <div class="corner">03</div>
-</div>
+</section>
 
-<!-- 04 HEARTBEAT FLOW -->
-<div class="slide" id="s4">
-  <div class="tag">Core instruction</div>
-  <div class="h2">Heartbeat <span class="g">data flow</span></div>
-  <div class="g2" style="flex:1;margin-top:8px;align-items:start;">
-    <div style="display:flex;flex-direction:column;gap:5px;">
-      <div class="fnode fp">
-        <div class="fn-num">STEP 01</div>
-        <div class="fn-t">Router sends signed heartbeat tx</div>
-        <div class="fn-d">program.methods.heartbeat().accountsPartial({router,protocol,owner}).rpc() &mdash; signed by owner keypair</div>
-      </div>
-      <div class="fdarr">&darr;</div>
-      <div class="fnode ft">
-        <div class="fn-num">STEP 02</div>
-        <div class="fn-t">Anchor validates all accounts</div>
-        <div class="fn-d">Seeds + bump re-derived and compared. has_one = owner enforced. Status != Suspended or Decommissioned.</div>
-      </div>
-      <div class="fdarr">&darr;</div>
-      <div class="fnode fy">
-        <div class="fn-num">STEP 03</div>
-        <div class="fn-t">Clock::get() &mdash; tamper-proof timestamp</div>
-        <div class="fn-d">elapsed = now &minus; last_heartbeat. If elapsed == 0 &rarr; HeartbeatTooSoon (same-block replay blocked).</div>
-      </div>
-      <div class="fdarr">&darr;</div>
-      <div class="fnode fg">
-        <div class="fn-num">STEP 04</div>
-        <div class="fn-t">uptime::calculate(score, elapsed, interval)</div>
-        <div class="fn-d">Pure function. On time &rarr; +1 capped at 100. Late &rarr; &minus;10 floored at 0. missed_heartbeats++.</div>
-      </div>
-      <div class="fdarr">&darr;</div>
-      <div class="fnode fr">
-        <div class="fn-num">STEP 05</div>
-        <div class="fn-t">Auto-suspend check</div>
-        <div class="fn-d">score &le; 20 AND Active &rarr; status = Suspended. RouterSuspended event emitted. Router stops automatically.</div>
-      </div>
-      <div class="fdarr">&darr;</div>
-      <div class="fnode fp">
-        <div class="fn-num">STEP 06</div>
-        <div class="fn-t">State committed + event emitted</div>
-        <div class="fn-d">last_heartbeat = now. heartbeat_count += 1 via checked_add. HeartbeatReceived event indexed by RPC nodes.</div>
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="card">
-        <div class="ch">First heartbeat special case</div>
-        <div class="cb" style="margin-bottom:7px;">heartbeat_count == 0 &rarr; no timing check. Transitions Inactive &rarr; Active. Sets last_heartbeat = now. No penalty.</div>
-        <div class="code">
-<span class="kw">if</span> router.heartbeat_count == <span class="nu">0</span> {
-  router.status = RouterStatus::Active;
-  router.last_heartbeat = now;
-  <span class="cm">// no penalty on first heartbeat</span>
-} <span class="kw">else</span> {
-  <span class="kw">let</span> elapsed = now
-    .<span class="fn">checked_sub</span>(router.last_heartbeat)
-    .<span class="fn">ok_or</span>(RouterPulseError::InvalidTimestamp)?;
-  <span class="fn">require!</span>(elapsed &gt; <span class="nu">0</span>, HeartbeatTooSoon);
-  <span class="kw">let</span> result = <span class="fn">uptime::calculate</span>(
-    router.uptime_score, elapsed, interval
-  );
-}</div>
-      </div>
-      <div class="hl t">Why Clock::get() and not a passed argument? Caller can forge any argument value. Validators set the clock &mdash; the only unforgeable time source in a Solana program.</div>
-      <div class="card cy">
-        <div class="ch y">Two-layer replay protection</div>
-        <div class="cb">Layer 1: elapsed &gt; 0 blocks same-block replay. Layer 2: last_heartbeat = now ensures every future call measures elapsed from current validated time.</div>
-      </div>
-    </div>
+<!-- 7 ─────────────────────────────────────────────── -->
+<section class="slide" id="s7">
+  <div class="kicker">Economics</div>
+  <h2>One table pays and punishes</h2>
+  <table>
+    <tr><th>Uptime</th><th>Reward multiplier</th><th>Slash</th></tr>
+    <tr><td>≥ 99%</td><td class="good">100%</td><td>—</td></tr>
+    <tr><td>95 – 99%</td><td class="good">90%</td><td>—</td></tr>
+    <tr><td>90 – 95%</td><td class="warn">75%</td><td class="warn">1%</td></tr>
+    <tr><td>80 – 90%</td><td class="warn">50%</td><td class="warn">5%</td></tr>
+    <tr><td>70 – 80%</td><td class="warn">25%</td><td class="warn">8%</td></tr>
+    <tr><td>&lt; 70%</td><td class="bad">0%</td><td class="bad">10% of stake</td></tr>
+  </table>
+  <p class="mt">Reward and slash come from the <em>same lookup</em> on purpose.
+  Marginal downtime is survivable; sustained downtime is expensive.
+  <strong>That asymmetry is the entire economic argument for keeping hardware
+  online.</strong></p>
+  <p>Slashed collateral is burned, not redistributed — so the penalty is
+  deflationary for every holder rather than a transfer to whoever controls
+  the treasury.</p>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────── -->
+<section class="slide" id="s8">
+  <div class="kicker">The good part</div>
+  <h2>Six bugs found by running it</h2>
+  <table>
+    <tr><th>#</th><th>Bug</th><th>Why it matters</th></tr>
+    <tr><td>1</td><td>BPF stack overflow</td><td>The build printed an error and <strong>still emitted a working <code>.so</code></strong>. Trusting the exit code ships undefined behaviour.</td></tr>
+    <tr><td>2</td><td>Bootstrap deadlock</td><td>Staking needed tokens; minting needed vesting; vesting needed staking. <em>Nobody could ever get the first token.</em></td></tr>
+    <tr><td>3</td><td>Indexer losing events</td><td>A transient RPC <code>null</code> marked a signature processed <strong>forever</strong>.</td></tr>
+    <tr><td>4</td><td><code>u64</code> overflow</td><td>Overflowed at a 100% multiplier. Caught by its own unit test.</td></tr>
+    <tr><td>5</td><td><code>listen()</code> on localhost</td><td>Green deploy, 404 everywhere. The <strong>header</strong> told the truth while the status code lied.</td></tr>
+    <tr><td>6</td><td>Foreign UNIQUE index</td><td>Incompatible with PDA-based identity — two operators may share a router ID.</td></tr>
+  </table>
+  <div class="quote mt">
+    Bug 3 is why reconciliation exists here. The event stream genuinely lost
+    data — the periodic re-read from chain is what caught it. That's not a
+    failure mode I designed around defensively; it's one I watched happen.
   </div>
-  <div class="corner">04</div>
-</div>
+</section>
 
-<!-- 05 REWARD FLOW -->
-<div class="slide" id="s5">
-  <div class="tag">Economic engine</div>
-  <div class="h2">Reward <span class="y">claim flow</span></div>
-  <div class="g2" style="flex:1;margin-top:8px;align-items:start;">
-    <div style="display:flex;flex-direction:column;gap:5px;">
-      <div class="fnode fp">
-        <div class="fn-num">CHECK 01</div>
-        <div class="fn-t">Eligibility gate</div>
-        <div class="fn-d">status == Active &bull; heartbeat_count &gt; 0 &bull; elapsed &gt; 0 &bull; reward &gt; 0 &bull; vault balance &ge; amount</div>
-      </div>
-      <div class="fdarr">&darr; all pass</div>
-      <div class="fnode ft">
-        <div class="fn-num">CALC 02</div>
-        <div class="fn-t">Uptime percentage from history</div>
-        <div class="fn-d">uptime_pct = (heartbeat_count &minus; missed) &times; 100 &divide; heartbeat_count</div>
-      </div>
-      <div class="fdarr">&darr;</div>
-      <div class="fnode fy">
-        <div class="fn-num">CALC 03</div>
-        <div class="fn-t">Base reward &times; reliability</div>
-        <div class="fn-d">base = elapsed &times; reward_rate &nbsp;&bull;&nbsp; final = base &times; uptime_pct &divide; 100</div>
-      </div>
-      <div class="fdarr">&darr;</div>
-      <div class="fnode fg">
-        <div class="fn-num">TRANSFER 04</div>
-        <div class="fn-t">Direct lamport transfer from vault PDA</div>
-        <div class="fn-d">vault.lamports &minus;= amount &bull; owner.lamports += amount &bull; atomic &mdash; no partial transfer</div>
-      </div>
-      <div class="fdarr">&darr;</div>
-      <div class="fnode fp">
-        <div class="fn-num">STATE 05</div>
-        <div class="fn-t">Update state + emit event</div>
-        <div class="fn-d">router.total_rewards += amount &bull; last_claim_time = now &bull; protocol.total_distributed += amount</div>
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="fml">
-<span class="cmt">// uptime percentage</span>
-uptime_pct = (heartbeat_count
-  - missed_heartbeats) &times; <span class="val">100</span>
-  &divide; heartbeat_count
-
-<span class="cmt">// base reward</span>
-base = elapsed_secs &times; reward_rate
-
-<span class="cmt">// scale by reliability</span>
-<span class="res">reward = base &times; uptime_pct &divide; 100</span>
-</div>
-      <div class="fml">
-<span class="cmt">// worked example</span>
-elapsed   = <span class="val">3600</span>s &nbsp; rate = <span class="val">1000</span> lam/s
-uptime    = <span class="val">80</span>%
-base      = <span class="val">3,600,000</span> lamports
-<span class="res">reward    = 2,880,000 lamports</span>
-</div>
-      <div class="card cp">
-        <div class="ch">Why direct lamport mutation not CPI transfer?</div>
-        <div class="cb">system_program::transfer requires the sender to sign. A PDA has no private key &mdash; it cannot sign. Direct lamport manipulation works cleanly for in-transaction balance moves.</div>
-      </div>
-      <div class="hl y">Why last_claim_time not last_heartbeat? last_heartbeat resets every 5 minutes. Using it forces claiming after every heartbeat. last_claim_time lets days of rewards accumulate &mdash; practical for operators.</div>
-    </div>
+<!-- 9 ─────────────────────────────────────────────── -->
+<section class="slide" id="s9">
+  <div class="kicker">Deep dive</div>
+  <h2>Bug 3, in full</h2>
+  <pre><span class="c">// indexer/src/ingest.ts — the original</span>
+<span class="k">if</span> (!tx || tx.meta?.err) {
+    <span class="c">// treats "not queryable yet" the same as "reverted"</span>
+    <span class="k">await</span> claimSignature(...);   <span class="c">// ← permanent</span>
+    <span class="k">return</span> 0;
+}</pre>
+  <p>A log notification routinely arrives <em>before</em> the RPC will serve
+  the transaction. That <code>null</code> is transient — but the signature got
+  recorded as processed, and backfill skips anything already recorded. The
+  events were unrecoverable.</p>
+  <div class="card accent mt">
+    <h3 class="bad">What it looked like in production</h3>
+    <p>An epoch sat in MongoDB marked <code>claimed: true</code> with no reward,
+    no uptime, no finalized flag — while the chain had it fully finalized at
+    <code>10000bps / 240000000</code>.</p>
   </div>
-  <div class="corner">05</div>
-</div>
+  <p class="mt"><strong>Two fixes.</strong> Don't claim a signature on a
+  transient null. And extend reconciliation to cover epochs — it only covered
+  protocol and routers, which is exactly why nothing repaired the damage.</p>
+</section>
 
-<!-- 06 PDAs -->
-<div class="slide" id="s6">
-  <div class="tag">Program Derived Addresses</div>
-  <div class="h2"><span class="p">Three</span> PDAs &mdash; complete field reference</div>
-  <div style="flex:1;overflow-y:auto;margin-top:8px;">
-    <div class="pdab">
-      <div class="pdah" style="background:rgba(139,127,255,.08);border-color:rgba(139,127,255,.18);">
-        <span class="pdn" style="color:var(--p)">Protocol PDA</span>
-        <span class="pds">seeds: [b&ldquo;protocol&rdquo;] &mdash; global singleton, only one ever exists</span>
-      </div>
-      <div class="pdfs">
-        <div class="pdf"><span class="pfn">authority</span><span class="pft">Pubkey &mdash; admin wallet</span></div>
-        <div class="pdf"><span class="pfn">reward_rate</span><span class="pft">u64 &mdash; lamports per second</span></div>
-        <div class="pdf"><span class="pfn">penalty_bps</span><span class="pft">u16 &mdash; basis points 0&ndash;10000</span></div>
-        <div class="pdf"><span class="pfn">heartbeat_interval</span><span class="pft">i64 &mdash; max seconds between beats</span></div>
-        <div class="pdf"><span class="pfn">total_routers</span><span class="pft">u64 &mdash; registered device count</span></div>
-        <div class="pdf"><span class="pfn">total_rewards_distributed</span><span class="pft">u64 &mdash; lifetime lamports paid</span></div>
-        <div class="pdf"><span class="pfn">is_paused</span><span class="pft">bool &mdash; emergency stop flag</span></div>
-        <div class="pdf"><span class="pfn">bump + vault_bump</span><span class="pft">u8 each &mdash; stored canonical bumps</span></div>
+<!-- 10 ────────────────────────────────────────────── -->
+<section class="slide" id="s10">
+  <div class="kicker">Stack</div>
+  <h2>What it's built with</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3>On-chain</h3>
+      <div style="margin-top:8px">
+        <span class="pill on">Rust</span><span class="pill on">Anchor 1.0</span>
+        <span class="pill on">SPL Token</span><span class="pill">PDAs</span>
+        <span class="pill">CPI · invoke_signed</span><span class="pill">checked math</span>
       </div>
     </div>
-    <div class="pdab">
-      <div class="pdah" style="background:rgba(63,216,204,.07);border-color:rgba(63,216,204,.18);">
-        <span class="pdn" style="color:var(--t)">Router PDA</span>
-        <span class="pds">seeds: [b&ldquo;router&rdquo;, owner.key, router_id.as_bytes()]</span>
-      </div>
-      <div class="pdfs">
-        <div class="pdf"><span class="pfn">owner</span><span class="pft">Pubkey &mdash; operator wallet</span></div>
-        <div class="pdf"><span class="pfn">router_id</span><span class="pft">String(32) &mdash; hardware identifier</span></div>
-        <div class="pdf"><span class="pfn">location_lat / long</span><span class="pft">i64 &mdash; GPS &times; 1_000_000</span></div>
-        <div class="pdf"><span class="pfn">uptime_score</span><span class="pft">u8 &mdash; 0 to 100</span></div>
-        <div class="pdf"><span class="pfn">last_heartbeat</span><span class="pft">i64 &mdash; unix timestamp</span></div>
-        <div class="pdf"><span class="pfn">heartbeat_count</span><span class="pft">u64 &mdash; total received</span></div>
-        <div class="pdf"><span class="pfn">missed_heartbeats</span><span class="pft">u64 &mdash; late or absent beats</span></div>
-        <div class="pdf"><span class="pfn">total_rewards</span><span class="pft">u64 &mdash; lifetime earnings</span></div>
-        <div class="pdf"><span class="pfn">total_penalties</span><span class="pft">u64 &mdash; lifetime deductions</span></div>
-        <div class="pdf"><span class="pfn">last_claim_time</span><span class="pft">i64 &mdash; reward window start</span></div>
-        <div class="pdf"><span class="pfn">status</span><span class="pft">RouterStatus enum</span></div>
-        <div class="pdf"><span class="pfn">bump</span><span class="pft">u8 &mdash; canonical PDA bump</span></div>
+    <div class="card">
+      <h3>Backend</h3>
+      <div style="margin-top:8px">
+        <span class="pill t">NestJS 11</span><span class="pill t">MongoDB</span>
+        <span class="pill t">Redis</span><span class="pill">Socket.IO</span>
+        <span class="pill">JWT · ed25519</span><span class="pill">OpenAPI</span>
       </div>
     </div>
-    <div class="pdab">
-      <div class="pdah" style="background:rgba(247,201,75,.06);border-color:rgba(247,201,75,.18);">
-        <span class="pdn" style="color:var(--y)">Vault PDA</span>
-        <span class="pds">seeds: [b&ldquo;reward_vault&rdquo;, protocol.key] &mdash; SOL treasury, no typed data</span>
+    <div class="card">
+      <h3>Frontend</h3>
+      <div style="margin-top:8px">
+        <span class="pill g">Next.js 15</span><span class="pill g">Server Components</span>
+        <span class="pill">Wallet Adapter</span><span class="pill">Sign-In-With-Solana</span>
       </div>
-      <div class="pdfs">
-        <div class="pdf"><span class="pfn">type</span><span class="pft">UncheckedAccount &mdash; lamports only</span></div>
-        <div class="pdf"><span class="pfn">bump</span><span class="pft">stored as protocol.vault_bump, computed at init</span></div>
+    </div>
+    <div class="card">
+      <h3>Infrastructure</h3>
+      <div style="margin-top:8px">
+        <span class="pill">Docker Compose</span><span class="pill">GitHub Actions</span>
+        <span class="pill">Vercel</span><span class="pill">Render</span>
+        <span class="pill">Atlas</span><span class="pill">Redis Cloud</span>
       </div>
     </div>
   </div>
-  <div class="corner">06</div>
-</div>
+  <p class="mt"><strong>Server Components by default.</strong> Read-only routes
+  ship ~168&nbsp;B of JS. Only two things are client-side, and both have a
+  reason: the live feed needs a socket, and the operator page is scoped to a
+  wallet the server can't know about.</p>
+</section>
 
-<!-- 07 UPTIME SCORE -->
-<div class="slide" id="s7">
-  <div class="tag">Business logic</div>
-  <div class="h2">Uptime score <span class="p">algorithm</span></div>
-  <div class="g2" style="flex:1;margin-top:8px;align-items:start;">
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="fml">
-<span class="cmt">// on-time heartbeat</span>
-new_score = <span class="fn">min</span>(<span class="val">100</span>, score + <span class="val">1</span>)
-
-<span class="cmt">// late heartbeat (elapsed &gt; interval)</span>
-new_score = <span class="fn">max</span>(<span class="val">0</span>, score - <span class="val">10</span>)
-
-<span class="cmt">// auto-suspend</span>
-<span class="res">score &le; 20 AND status == Active</span>
-</div>
-      <div class="hl">Asymmetric by design: +1 on time, &minus;10 late. One miss wipes 10 recoveries. Operators cannot game with burst heartbeats after downtime.</div>
-      <div class="g2">
-        <div class="card cp">
-          <div class="ch">saturating_sub for score</div>
-          <div class="cb">Score can safely floor at 0. saturating handles without error. No need to abort the transaction.</div>
-        </div>
-        <div class="card cr">
-          <div class="ch r">checked_sub for money</div>
-          <div class="cb">Financial underflow must abort. checked_sub returns Err on underflow. Wrong choice = silent corruption.</div>
-        </div>
-      </div>
-      <div style="margin-top:4px;">
-        <div style="font-size:9px;color:var(--mu);font-family:var(--mono);margin-bottom:7px;letter-spacing:.08em;">ROUTER STATUS LIFECYCLE</div>
-        <div class="sflow"><div class="sbox si">Inactive</div><span class="sarr">&rarr; first heartbeat &rarr;</span><div class="sbox sa">Active</div></div>
-        <div class="sflow"><div class="sbox sa">Active</div><span class="sarr">&rarr; score &le; 20 &rarr;</span><div class="sbox ss">Suspended</div></div>
-        <div class="sflow"><div class="sbox ss">Suspended</div><span class="sarr">&rarr; admin reinstate &rarr;</span><div class="sbox sa">Active (score=50)</div></div>
-        <div class="sflow"><div class="sbox sa">Active</div><span class="sarr">&rarr; admin &rarr;</span><div class="sbox sd">Decommissioned</div></div>
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div style="font-size:9px;color:var(--mu);font-family:var(--mono);margin-bottom:2px;letter-spacing:.08em;">SCORE SIMULATION &mdash; 20 HEARTBEATS (starts at 80)</div>
-      <div style="background:#04040c;border-radius:10px;border:1px solid var(--b2);overflow:hidden;">
-        <canvas id="scoreCanvas" width="420" height="185" style="width:100%;display:block;"></canvas>
-      </div>
-      <div style="display:flex;gap:14px;font-size:10px;color:var(--mu);font-family:var(--mono);">
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:2px;background:var(--p);display:inline-block;"></span>score</span>
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:var(--r);display:inline-block;"></span>late (&minus;10)</span>
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:var(--g);display:inline-block;"></span>on-time (+1)</span>
-      </div>
-      <div class="hl g">uptime.rs is pure Rust &mdash; no Solana dependencies. Testable with cargo test alone. 12 unit tests cover every edge case. Reused by the reward engine for uptime_percentage.</div>
-    </div>
+<!-- 11 ────────────────────────────────────────────── -->
+<section class="slide" id="s11">
+  <div class="kicker">Correctness</div>
+  <h2>How it's verified</h2>
+  <div class="grid g4">
+    <div class="stat"><div class="n">40</div><div class="l">ON-CHAIN INTEGRATION</div></div>
+    <div class="stat"><div class="n">26</div><div class="l">RUST UNIT</div></div>
+    <div class="stat"><div class="n">21</div><div class="l">API E2E</div></div>
+    <div class="stat"><div class="n">8/8</div><div class="l">DEVNET LIFECYCLE</div></div>
   </div>
-  <div class="corner">07</div>
-</div>
-
-<!-- 08 SECURITY -->
-<div class="slide" id="s8">
-  <div class="tag">Security architecture</div>
-  <div class="h2"><span class="r">8 attack vectors</span> &mdash; all blocked</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;flex:1;margin-top:10px;align-content:start;">
-    <div class="atk"><div class="atk-t">Missing signer</div><div class="atk-w">Call instruction without signing as expected wallet</div><div class="atk-f">pub authority: Signer&lt;&apos;info&gt;</div></div>
-    <div class="atk"><div class="atk-t">PDA substitution</div><div class="atk-w">Pass own PDA where victim&apos;s router account is expected</div><div class="atk-f">seeds=[...], bump=router.bump, has_one=owner</div></div>
-    <div class="atk"><div class="atk-t">Timestamp forge</div><div class="atk-w">Pass fake past timestamp to claim non-existent heartbeats</div><div class="atk-f">Clock::get() &mdash; validator-set, unforgeable</div></div>
-    <div class="atk"><div class="atk-t">Same-block replay</div><div class="atk-w">Resubmit a valid heartbeat transaction in same block</div><div class="atk-f">require!(elapsed &gt; 0, HeartbeatTooSoon)</div></div>
-    <div class="atk"><div class="atk-t">Integer overflow</div><div class="atk-w">Pass u64::MAX to wrap a balance silently to zero</div><div class="atk-f">checked_add().ok_or(Error::Overflow)?</div></div>
-    <div class="atk"><div class="atk-t">Unauthorized admin</div><div class="atk-w">Sign with non-authority wallet for governance operations</div><div class="atk-f">require!(signer.key() == protocol.authority)</div></div>
-    <div class="atk"><div class="atk-t">Type confusion</div><div class="atk-w">Pass Router account where Protocol account is expected</div><div class="atk-f">Discriminator mismatch &rarr; AccountDidNotDeserialize</div></div>
-    <div class="atk"><div class="atk-t">Insecure CPI target</div><div class="atk-w">Pass malicious program ID as token_program argument</div><div class="atk-f">pub token_program: Program&lt;&apos;info, Token&gt;</div></div>
+  <p class="mt">The integration suite <strong>waits out real epoch
+  boundaries</strong> rather than mocking the clock. Epoch closure is the
+  mechanism the whole reward design rests on — faking it would test the wrong
+  thing. A full run takes about four minutes, and that's the honest cost.</p>
+  <div class="card accent mt">
+    <h3>Load test findings</h3>
+    <p>p50 <strong>70ms</strong>, p95 <strong>937ms</strong> — a 13× tail caused
+    by remote datastores, not the API. The rate limiter shed <strong>87% of a
+    429 req/s flood with zero errors</strong>.</p>
   </div>
-  <div class="hl r" style="margin-top:9px;">Signer proves identity (authentication). Manual require! proves permission (authorization). Both are always needed &mdash; one without the other is a vulnerability.</div>
-  <div class="corner">08</div>
-</div>
+</section>
 
-<!-- 09 INSTRUCTIONS TABLE -->
-<div class="slide" id="s9">
-  <div class="tag">Instruction design</div>
-  <div class="h2">8 <span class="t">instructions</span> &mdash; accounts matrix</div>
-  <div class="tw" style="flex:1;margin-top:10px;">
-    <table>
-      <thead><tr>
-        <th>Instruction</th><th>Who calls</th>
-        <th class="tc">Protocol</th><th class="tc">Router</th><th class="tc">Vault</th>
-        <th>Key design decision</th>
-      </tr></thead>
-      <tbody>
-        <tr><td class="mn">initialize_protocol</td><td>Admin &mdash; once</td><td class="tc dg">init</td><td class="tc dm">&mdash;</td><td class="tc dm">&mdash;</td><td>Fixed seed [b&ldquo;protocol&rdquo;] = enforced singleton</td></tr>
-        <tr><td class="mn">register_router</td><td>Operator</td><td class="tc dy">mut</td><td class="tc dg">init</td><td class="tc dm">&mdash;</td><td>Seeds include router_id &mdash; unique per device</td></tr>
-        <tr><td class="mn">heartbeat</td><td>Router (frequent)</td><td class="tc dm">read</td><td class="tc dy">mut</td><td class="tc dm">&mdash;</td><td>elapsed&gt;0 replay guard + has_one ownership</td></tr>
-        <tr><td class="mn">claim_reward</td><td>Operator</td><td class="tc dy">mut</td><td class="tc dy">mut</td><td class="tc dy">mut</td><td>Direct lamport mutation &mdash; no CPI needed</td></tr>
-        <tr><td class="mn">apply_penalty</td><td>Admin</td><td class="tc dm">read</td><td class="tc dy">mut</td><td class="tc dm">&mdash;</td><td>BPS-based proportional penalty calculation</td></tr>
-        <tr><td class="mn">pause_protocol</td><td>Admin</td><td class="tc dy">mut</td><td class="tc dm">&mdash;</td><td class="tc dm">&mdash;</td><td>Emergency stop &mdash; is_paused gates all instructions</td></tr>
-        <tr><td class="mn">reinstate_router</td><td>Admin</td><td class="tc dm">read</td><td class="tc dy">mut</td><td class="tc dm">&mdash;</td><td>Protocol read-only &mdash; only reads authority field</td></tr>
-        <tr><td class="mn">update_reward_rate</td><td>Admin</td><td class="tc dy">mut</td><td class="tc dm">&mdash;</td><td class="tc dm">&mdash;</td><td>Governance without redeployment</td></tr>
-      </tbody>
-    </table>
+<!-- 12 ────────────────────────────────────────────── -->
+<section class="slide" id="s12">
+  <div class="kicker">Honesty</div>
+  <h2>What's still missing</h2>
+  <table>
+    <tr><th>Gap</th><th>The answer</th></tr>
+    <tr><td class="bad">Upgrade authority is one keypair</td><td>Biggest real gap. Production needs a multisig with a timelock. First thing I'd fix.</td></tr>
+    <tr><td class="warn">No observability</td><td>I'd instrument the indexer first — indexer lag is the metric that predicts user-visible staleness.</td></tr>
+    <tr><td class="warn">Indexer not hosted</td><td>Site stays up without it; new activity stops flowing. Needs an always-on worker.</td></tr>
+    <tr><td class="warn">ClickHouse / DEX descoped</td><td>Mongo aggregations suffice at this volume. Reasoning is written down, not retrofitted.</td></tr>
+    <tr><td class="warn">Rate limiter in-memory</td><td>Per-instance, so the effective limit multiplies when scaled.</td></tr>
+  </table>
+  <div class="quote mt">
+    It's production-<em>shaped</em>, not production-grade. The distinction
+    matters, and I'd rather state it than have you find it.
   </div>
-  <div class="hl" style="margin-top:10px;">Why Protocol is read (not mut) in reinstate_router: we only read protocol.authority to validate the caller. Marking accounts mut when you don&apos;t write = unnecessary privilege escalation &mdash; a security anti-pattern.</div>
-  <div class="corner">09</div>
-</div>
+</section>
 
-<!-- 10 SIMULATOR -->
-<div class="slide" id="s10">
-  <div class="tag">Node.js simulator</div>
-  <div class="h2">Multi-router <span class="t">simulation</span></div>
-  <div class="g2" style="flex:1;margin-top:8px;align-items:start;">
-    <div style="display:flex;flex-direction:column;gap:9px;">
-      <div class="card ct">
-        <div class="ch t">Mumbai &mdash; reliable (5% fail)</div>
-        <div style="font-family:var(--mono);font-size:10.5px;color:var(--mu2);line-height:2.1;">
-          &#9989; #1 | score: <span style="color:var(--g)">100</span> | status: active<br>
-          &#9989; #2 | score: <span style="color:var(--g)">100</span> | status: active<br>
-          &#9989; #3 | score: <span style="color:var(--g)">100</span> | status: active
-        </div>
-      </div>
-      <div class="card cy">
-        <div class="ch y">Delhi &mdash; unstable (30% fail)</div>
-        <div style="font-family:var(--mono);font-size:10.5px;color:var(--mu2);line-height:2.1;">
-          &#10060; missed (total: 1)<br>
-          &#9989; #1 | score: <span style="color:var(--g)">100</span> | status: active<br>
-          &#10060; missed (total: 2)<br>
-          &#9989; #2 | score: <span style="color:var(--y)">90</span> | status: active
-        </div>
-      </div>
-      <div class="card cr">
-        <div class="ch r">Bangalore &mdash; bad (60% fail)</div>
-        <div style="font-family:var(--mono);font-size:10.5px;color:var(--mu2);line-height:2.1;">
-          &#10060; missed (total: 4)<br>
-          &#10060; missed (total: 5)<br>
-          &#9989; #1 | score: <span style="color:var(--r)">50</span> | status: active<br>
-          &#128308; SUSPENDED &mdash; stopping
-        </div>
-      </div>
-      <div class="hl t">Run: <strong>cd simulator &amp;&amp; npm start</strong> &mdash; watch all 3 routers live</div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="code">
-<span class="kw">class</span> <span class="ty">RouterSimulator</span> {
-  <span class="kw">async</span> <span class="fn">sendHeartbeat</span>() {
-    <span class="cm">// simulate real-world failure rate</span>
-    <span class="kw">if</span> (Math.<span class="fn">random</span>() &lt; this.failRate) {
-      this.missedCount++;
-      <span class="kw">return false</span>; <span class="cm">// router offline</span>
-    }
-    <span class="kw">await</span> program.methods
-      .<span class="fn">heartbeat</span>()
-      .<span class="fn">accountsPartial</span>({
-        router:   this.routerPDA,
-        protocol: this.protocolPDA,
-        owner:    this.wallet.publicKey,
-      })
-      .<span class="fn">signers</span>([this.wallet])
-      .<span class="fn">rpc</span>();
-  }
-}
-
-<span class="cm">// all routers run in parallel</span>
-<span class="kw">await</span> <span class="ty">Promise</span>.<span class="fn">all</span>(
-  simulators.<span class="fn">map</span>(s => s.<span class="fn">start</span>(INTERVAL))
-);</div>
-      <div class="hl y">Why .accountsPartial() not .accounts()? Anchor 0.30+ auto-resolves accounts from IDL. Router PDA needs router_id (a runtime string) in seeds &mdash; auto-resolver cannot handle this and enters infinite recursion. accountsPartial provides exactly what we specify.</div>
-    </div>
+<!-- 13 ────────────────────────────────────────────── -->
+<section class="slide" id="s13">
+  <div class="kicker">Close</div>
+  <h2>What this project demonstrates</h2>
+  <div class="grid g3">
+    <div class="card"><h3 class="good">Protocol design</h3><p>Found an economic flaw in my own design and fixed the cause, not the symptom.</p></div>
+    <div class="card"><h3 class="good">Distributed systems</h3><p>Idempotency, projections vs. source of truth, reconciliation as a correctness backstop.</p></div>
+    <div class="card"><h3 class="good">Operational judgement</h3><p>Every bug here came from running the system, and the gaps are documented rather than hidden.</p></div>
   </div>
-  <div class="corner">10</div>
-</div>
-
-<!-- 11 DESIGN DECISIONS -->
-<div class="slide" id="s11">
-  <div class="tag">Architecture rationale</div>
-  <div class="h2">Why these <span class="p">decisions</span></div>
-  <div class="g3" style="flex:1;margin-top:8px;align-content:start;">
-    <div class="card cp"><div class="ch">One PDA per router</div><div class="ct2">Parallel Sealevel execution</div><div class="cb">Vec in shared account hits 10MB + forces serial writes. Individual PDAs &rarr; Solana processes all heartbeats simultaneously. One bug can&apos;t corrupt all devices.</div></div>
-    <div class="card ct"><div class="ch t">Canonical bump storage</div><div class="ct2">Correctness + compute savings</div><div class="cb">find_program_address iterates 255&rarr;0, costs compute each call. Store at init, reuse forever. Wrong bump = different address entirely.</div></div>
-    <div class="card cy"><div class="ch y">GPS as fixed-point i64</div><div class="ct2">BPF has no float support</div><div class="cb">Multiply coordinate &times;1,000,000. 6 decimal places = ~11cm precision. Bounded: &plusmn;90&deg; lat (physical GPS limit), &plusmn;180&deg; long.</div></div>
-    <div class="card cp"><div class="ch">Asymmetric score</div><div class="ct2">+1 on time, &minus;10 late</div><div class="cb">One miss = 10 recoveries. Forces genuine continuous uptime. Operators cannot game with burst heartbeats after offline periods.</div></div>
-    <div class="card cr"><div class="ch r">overflow-checks = true</div><div class="ct2">Cargo.toml safety net</div><div class="cb">Rust release mode silently wraps overflow. u64::MAX + 1 = 0. In a financial program catastrophic. One line prevents the entire class.</div></div>
-    <div class="card cg"><div class="ch g">uptime.rs separation</div><div class="ct2">Pure math module</div><div class="cb">No Solana deps &mdash; testable with cargo test, no validator. 12 unit tests. Reused by reward engine. heartbeat.rs stays clean.</div></div>
-    <div class="card ct"><div class="ch t">Vault not minting</div><div class="ct2">Controlled supply</div><div class="cb">Minting = inflation risk. Pre-funded vault = distribute only deposited SOL. Admin controls economics externally. Vault empty = rewards stop cleanly.</div></div>
-    <div class="card cy"><div class="ch y">Auth + authz separate</div><div class="ct2">Signer &ne; authorized</div><div class="cb">Signer proves identity. require! proves permission. Authentication &ne; authorization &mdash; both always needed together in every admin instruction.</div></div>
-    <div class="card cp"><div class="ch">vault_bump in Protocol</div><div class="ct2">Computed once, stored</div><div class="cb">Vault is UncheckedAccount (SOL only). Bump computed via find_program_address at init, stored as protocol.vault_bump, reused in every claim.</div></div>
+  <div class="quote mt">
+    A router earns money by proving it was online — and every claim in that
+    sentence is enforced by the protocol rather than trusted.
   </div>
-  <div class="corner">11</div>
-</div>
-
-<!-- 12 TESTS -->
-<div class="slide" id="s12">
-  <div class="tag">Quality assurance</div>
-  <div class="h2">Test <span class="g">coverage</span> &mdash; 32 total</div>
-  <div class="g2" style="flex:1;margin-top:8px;align-items:start;">
-    <div style="display:flex;flex-direction:column;gap:9px;">
-      <div class="tw">
-        <table>
-          <thead><tr><th>Test suite</th><th>Count</th><th>Type</th></tr></thead>
-          <tbody>
-            <tr><td>Protocol initialization</td><td class="mn dg">3</td><td>Integration</td></tr>
-            <tr><td>Router registration</td><td class="mn dg">5</td><td>Integration</td></tr>
-            <tr><td>Heartbeat instruction</td><td class="mn dg">4</td><td>Integration</td></tr>
-            <tr><td>Reward claiming</td><td class="mn dg">3</td><td>Integration</td></tr>
-            <tr><td>Penalty engine</td><td class="mn dg">2</td><td>Integration</td></tr>
-            <tr><td>Admin controls</td><td class="mn dg">3</td><td>Integration</td></tr>
-            <tr><td>uptime.rs math</td><td class="mn dg">12</td><td>Unit (cargo test)</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="hl g">20 integration + 12 unit = 32 tests. Unit tests run in milliseconds &mdash; no validator needed.</div>
-      <div class="card cr">
-        <div class="ch r">Security tests specifically written</div>
-        <div class="cb" style="line-height:2.1;">&#10003; Replay attack (same block)<br>&#10003; Wrong owner heartbeat<br>&#10003; Non-authority admin action<br>&#10003; PDA substitution (seed mismatch)<br>&#10003; Zero amount inputs<br>&#10003; Duplicate registration<br>&#10003; Vault insufficiency</div>
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="code" style="font-size:10.5px;">
-<span class="cm">// security test example</span>
-it(<span class="st">&apos;rejects heartbeat from wrong owner&apos;</span>, async () =&gt; {
-  <span class="kw">const</span> attacker = Keypair.<span class="fn">generate</span>();
-  <span class="kw">await</span> provider.connection
-    .<span class="fn">requestAirdrop</span>(attacker.publicKey, LAMPORTS);
-
-  <span class="kw">try</span> {
-    <span class="kw">await</span> program.methods.<span class="fn">heartbeat</span>()
-      .<span class="fn">accountsPartial</span>({
-        router:   routerPDA,
-        protocol: protocolPDA,
-        owner:    attacker.publicKey,
-      })
-      .<span class="fn">signers</span>([attacker])
-      .<span class="fn">rpc</span>();
-    assert.<span class="fn">fail</span>(<span class="st">&apos;should have rejected&apos;</span>);
-  } <span class="kw">catch</span> (err) {
-    assert.<span class="fn">ok</span>(err);
-    console.<span class="fn">log</span>(<span class="st">&apos;&#10003; Wrong owner rejected&apos;</span>);
-  }
-});</div>
-      <div class="card cp">
-        <div class="ch">Demo sequence</div>
-        <div style="font-family:var(--mono);font-size:10.5px;color:var(--mu2);line-height:2.3;">
-          <span style="color:var(--mu)"># T1</span> <span style="color:var(--t)">solana-test-validator --reset</span><br>
-          <span style="color:var(--mu)"># T2</span> <span style="color:var(--t)">anchor build</span><br>
-          <span style="color:var(--mu)"># T2</span> <span style="color:var(--t)">anchor test --skip-local-validator</span><br>
-          <span style="color:var(--mu)"># T2</span> <span style="color:var(--t)">cd simulator &amp;&amp; npm start</span>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="corner">12</div>
-</div>
-
-<!-- 13 CLOSING -->
-<div class="slide" id="s13">
-  <div class="gorb" style="width:440px;height:440px;background:rgba(63,216,204,.06);top:-100px;right:-80px;"></div>
-  <div class="gorb" style="width:280px;height:280px;background:rgba(6,245,160,.05);bottom:0;left:80px;"></div>
-  <div class="tag">Summary</div>
-  <div class="h1"><span class="t">Router</span><span class="p">Pulse</span></div>
-  <div class="sub">Built to deeply understand the exact infrastructure problem Wifi Dabba is solving &mdash; trustless, verifiable, automatically-rewarded Wi-Fi coverage on Solana.</div>
-  <div class="g2" style="margin-top:4px;">
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="card cg">
-        <div class="ch g">What was built</div>
-        <div style="font-size:11.5px;color:var(--mu2);line-height:2.3;">
-          &#10003; 3 PDAs &mdash; Protocol, Router, Vault<br>
-          &#10003; 8 instructions &mdash; full protocol lifecycle<br>
-          &#10003; uptime.rs &mdash; pure math, 12 unit tests<br>
-          &#10003; 21 custom errors &mdash; complete coverage<br>
-          &#10003; 20 integration tests &mdash; all passing<br>
-          &#10003; Node.js simulator &mdash; 3 concurrent routers<br>
-          &#10003; Devnet deployable &mdash; deploy.sh ready
-        </div>
-      </div>
-      <div class="card cp">
-        <div class="ch">Tech stack owned</div>
-        <div style="font-size:11.5px;color:var(--mu2);line-height:2.2;">
-          Rust &middot; Anchor 0.30 &middot; Solana BPF<br>
-          PDAs &middot; CPIs &middot; SPL Token Program<br>
-          TypeScript &middot; @coral-xyz/anchor<br>
-          MongoDB &middot; ClickHouse &middot; Redis
-        </div>
-      </div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div class="card ct">
-        <div class="ch t">Core concepts demonstrated</div>
-        <div style="font-size:11.5px;color:var(--mu2);line-height:2.2;">
-          PDA derivation + canonical bump storage<br>
-          Clock::get() tamper-proof timestamps<br>
-          Direct lamport mutation from PDA vault<br>
-          Asymmetric uptime scoring algorithm<br>
-          8-layer security defense architecture<br>
-          Sealevel parallel execution design
-        </div>
-      </div>
-      <div class="hl g" style="font-size:12.5px;">This directly mirrors the trust problem Wifi Dabba solves for Wi-Fi infrastructure in India. Architecture decisions &mdash; one PDA per router, oracle-verified proofs, token economics tied to verified service &mdash; come from studying real DePIN protocols like Helium.</div>
-    </div>
-  </div>
-  <div class="corner">13</div>
-</div>
+  <p class="mt" style="font-family:var(--mono);font-size:12.5px">
+    <a href="https://github.com/sivajisj/RouterPulse-Depin-Protocol">github.com/sivajisj/RouterPulse-Depin-Protocol</a><br>
+    <span style="color:var(--mu)">program 4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4 · devnet</span>
+  </p>
+</section>
 
 </div>
-<div id="dotbar"></div>
+
+<div class="bar">
+  <div class="counter" id="counter">SLIDE 01 / 13</div>
+  <div class="dots" id="dotbar"></div>
+  <div class="hint">← → or SPACE</div>
 </div>
 
 <script>
-let cur=1,total=13;
+let cur=1;const total=13;
 function buildDots(){
   const db=document.getElementById('dotbar');
   for(let i=1;i<=total;i++){
@@ -792,57 +419,15 @@ function goTo(n){
   document.getElementById('s'+cur)?.classList.add('active');
   document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i+1===cur));
   document.getElementById('counter').textContent='SLIDE '+String(cur).padStart(2,'0')+' / '+String(total).padStart(2,'0');
-  document.getElementById('pf').style.width=((cur/total)*100)+'%';
-  if(cur===7)setTimeout(drawScore,80);
+  document.getElementById('pf').style.width=(cur/total*100)+'%';
+  document.getElementById('s'+cur).scrollTop=0;
 }
-function next(){goTo(cur+1);}
-function prev(){goTo(cur-1);}
 document.addEventListener('keydown',e=>{
-  if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();next();}
-  if(e.key==='ArrowLeft'){e.preventDefault();prev();}
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();goTo(cur+1)}
+  if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();goTo(cur-1)}
+  if(e.key==='Home')goTo(1); if(e.key==='End')goTo(total);
 });
-buildDots();
-function drawScore(){
-  const canvas=document.getElementById('scoreCanvas');
-  if(!canvas||canvas.dataset.drawn)return;
-  canvas.dataset.drawn='1';
-  const ctx=canvas.getContext('2d');
-  const W=canvas.width,H=canvas.height;
-  ctx.clearRect(0,0,W,H);
-  const events=['on','on','on','late','on','on','late','late','on','on','on','late','on','on','on','on','late','on','on','on'];
-  let score=80;
-  const pts=[{x:0,y:score}];
-  events.forEach((e,i)=>{score=e==='on'?Math.min(100,score+1):Math.max(0,score-10);pts.push({x:i+1,y:score});});
-  const px=i=>28+(i/20)*(W-44);
-  const py=s=>H-16-(s/100)*(H-30);
-  [0,20,50,80,100].forEach(s=>{
-    ctx.strokeStyle=s===20?'rgba(255,107,122,0.22)':'rgba(255,255,255,0.04)';
-    ctx.lineWidth=s===20?1:0.5;
-    ctx.setLineDash(s===20?[5,4]:[]);
-    ctx.beginPath();ctx.moveTo(28,py(s));ctx.lineTo(W-16,py(s));ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle='rgba(112,112,160,0.55)';
-    ctx.font='8px JetBrains Mono,monospace';
-    ctx.fillText(s,3,py(s)+3);
-  });
-  ctx.fillStyle='rgba(255,107,122,0.5)';ctx.font='8px JetBrains Mono,monospace';
-  ctx.fillText('suspend@20',W-66,py(20)-3);
-  const grad=ctx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0,'rgba(139,127,255,0.22)');
-  grad.addColorStop(1,'rgba(139,127,255,0.01)');
-  ctx.beginPath();
-  ctx.moveTo(px(0),py(pts[0].y));
-  pts.forEach(p=>ctx.lineTo(px(p.x),py(p.y)));
-  ctx.lineTo(px(20),H);ctx.lineTo(px(0),H);
-  ctx.closePath();ctx.fillStyle=grad;ctx.fill();
-  ctx.beginPath();ctx.strokeStyle='#8b7fff';ctx.lineWidth=1.8;ctx.lineJoin='round';
-  pts.forEach((p,i)=>i===0?ctx.moveTo(px(p.x),py(p.y)):ctx.lineTo(px(p.x),py(p.y)));
-  ctx.stroke();
-  pts.forEach((p,i)=>{
-    if(i>0&&events[i-1]==='late'){ctx.beginPath();ctx.arc(px(p.x),py(p.y),3.5,0,Math.PI*2);ctx.fillStyle='#ff6b7a';ctx.fill();}
-    if(i>0&&events[i-1]==='on'){ctx.beginPath();ctx.arc(px(p.x),py(p.y),2,0,Math.PI*2);ctx.fillStyle='#06f5a0';ctx.fill();}
-  });
-}
+buildDots();goTo(1);
 </script>
 </body>
 </html>
