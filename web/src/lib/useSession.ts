@@ -30,12 +30,22 @@ export function useSession() {
     // Restore a previous session, but only if it belongs to the wallet
     // that's currently connected — otherwise switching wallets would
     // leave you authenticated as the previous one.
+    //
+    // A null wallet is deliberately not treated as a wallet change. On
+    // every page load the adapter reports `publicKey === null` for a tick
+    // before autoConnect resolves, so clearing storage here would wipe the
+    // stored session on each refresh and demand a fresh signature every
+    // time. Drop the in-memory session — nothing is authenticated while no
+    // wallet is connected — but leave the token on disk so reconnecting
+    // the same wallet picks it straight back up.
     useEffect(() => {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return;
             const stored: StoredSession = JSON.parse(raw);
-            if (wallet && stored.wallet === wallet) {
+            if (!wallet) {
+                setSession(null);
+            } else if (stored.wallet === wallet) {
                 setSession(stored);
             } else {
                 localStorage.removeItem(STORAGE_KEY);

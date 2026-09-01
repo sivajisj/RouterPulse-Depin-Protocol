@@ -90,6 +90,19 @@ export default function OperatorPage() {
                 </div>
             )}
 
+            {/* The authorization result is worth stating outright. Without it the
+                two failure-ish states look identical from the outside: a wallet
+                that never signed in renders no admin panel, and so does one that
+                signed in and was refused — very different things. */}
+            {isAuthenticated && (
+                <div className="notice">
+                    Signed in as <span className="mono">{shortAddress(wallet)}</span>.
+                    {adminStatus === 200 && " This wallet matches the on-chain protocol authority — admin panel unlocked below."}
+                    {adminStatus === 403 && " This wallet is not the protocol authority, so the admin API refused with 403."}
+                    {adminStatus === null && " Checking admin access\u2026"}
+                </div>
+            )}
+
             <div className="card" style={{ padding: 0, marginBottom: 14 }}>
                 <div className="card-title" style={{ padding: "16px 16px 0" }}>
                     Your Routers {routers && `(${routers.length})`}
