@@ -3,3 +3,19 @@ test-ledger
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
+
+# Secrets. The .env.example files are the tracked, redacted versions —
+# these are the ones holding real Atlas/Redis passwords and JWT secrets.
+.env
+.env.*
+!.env.example
+
+# Wallet keypairs. Never commit one, even a devnet throwaway: people
+# reuse them, and a funded devnet key is still someone's key.
+*keypair*.json
+id.json
+
+node_modules/
+dist/
+.next/
+target/
