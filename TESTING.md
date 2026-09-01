@@ -488,8 +488,19 @@ while a freshly generated wallet gets **403**.
 
 **Load test:**
 
+> **The API must be running first** — the load test only generates
+> traffic, it doesn't start anything. `cd api && npm run build && npm start`
+> in another terminal. And note the API is on **3001**; 3000 is the
+> dashboard.
+
 ```bash
 npm run test:load
+
+# against a deployed instance
+API_URL=https://routerpulse-api.onrender.com npm run test:load
+
+# heavier
+CONCURRENCY=50 DURATION_S=30 npm run test:load
 ```
 
 Real numbers from this stack (with cloud datastores):

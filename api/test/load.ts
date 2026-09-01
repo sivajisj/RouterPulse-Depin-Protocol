@@ -13,7 +13,9 @@
  *   npx ts-node -r tsconfig-paths/register test/load.ts
  *   API_URL=https://... CONCURRENCY=50 DURATION_S=20 npx ts-node ... test/load.ts
  */
-const API = process.env.API_URL || "http://127.0.0.1:3001";
+// Accepts API_URL or the shorter API — reaching for the wrong one and
+// getting a bare "fetch failed" is an easy half-hour to lose.
+const API = process.env.API_URL || process.env.API || "http://127.0.0.1:3001";
 const CONCURRENCY = Number(process.env.CONCURRENCY || 25);
 const DURATION_S = Number(process.env.DURATION_S || 15);
 
@@ -60,7 +62,10 @@ async function main() {
         const probe = await fetch(`${API}/health`);
         if (!probe.ok) throw new Error(`health returned ${probe.status}`);
     } catch (err: any) {
-        console.error(`API unreachable at ${API}: ${err.message}`);
+        console.error(`\nAPI unreachable at ${API} — ${err.message}\n`);
+        console.error(`  Is it running?   cd api && npm run build && npm start`);
+        console.error(`  Wrong port?      the API is 3001; 3000 is the dashboard`);
+        console.error(`  Different host?  API_URL=https://... npm run test:load\n`);
         process.exit(1);
     }
 
