@@ -28,9 +28,13 @@ is single-use and expires in five minutes.
 
 The admin panel is gated by whether the API returns 200 or 403 — and
 the API decides that by comparing the session wallet against the
-authority address currently stored **on-chain**, not a role in a
-database. If the real authority rotates, access follows on the next
-reconciliation pass with nothing to change here.
+protocol authority **as derived from chain events**, not a role anyone
+can set by hand. If the real authority rotates, access follows on the
+next reconciliation pass with nothing to change here.
+
+Connecting a wallet is not signing in, and signing in is not being
+authorized — three distinct states the page reports separately, because
+conflating them makes a refusal look like a bug.
 
 The connection this provider holds is used only for signing; every
 *read* on every page still goes through the API's indexed projection.

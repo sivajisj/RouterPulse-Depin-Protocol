@@ -120,7 +120,7 @@ Mocha · Chai · Supertest · Rust `#[cfg(test)]` · custom load harness
 > - Built a DePIN protocol where routers stake collateral and earn epoch-scoped token rewards from cryptographically-proven uptime; sustained downtime triggers on-chain slashing. **40 integration tests against a live validator, 87 automated tests total.**
 > - Redesigned reward accounting after discovering the original paid against a lifetime uptime average — a router could go offline indefinitely and still appear 100% healthy.
 > - Built an event-driven indexer (Solana → MongoDB) with idempotent ingestion and periodic on-chain reconciliation, **which caught a real bug silently dropping events**.
-> - Implemented Sign-In-With-Solana auth in NestJS with **RBAC resolved against live on-chain authority state** rather than a stored role.
+> - Implemented Sign-In-With-Solana auth in NestJS with **RBAC resolved against chain-derived protocol authority** rather than a stored role, so an on-chain authority rotation propagates with no migration.
 > - Deployed end to end: Anchor program on devnet, API on Render, Next.js dashboard on Vercel, MongoDB Atlas + Redis Cloud.
 
 ### Short form (2 lines)

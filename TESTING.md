@@ -555,14 +555,91 @@ All should be `200`.
 
 ### Wallet flow (manual — needs a browser)
 
-1. Phantom → set network to **Localhost** (or Devnet)
-2. Import the key from `~/.config/solana/id.json`
-3. Open `/operator` → **Connect Wallet** → **Sign in with Solana**
-4. The admin panel appears — you're the protocol authority
-5. Connect any *other* wallet and the same endpoint returns **403**
+The only path that can't be tested headlessly. Everything else in this
+runbook runs from a terminal; this needs a human and a wallet extension.
 
-That 403 is the demo. The API resolves authority against **live on-chain
-state**, not a database role.
+**First, convert the key.** Phantom imports base58, but Solana CLI
+keypairs are stored as a JSON byte array — pasting the raw JSON fails
+with an unhelpful error:
+
+```bash
+node -e "const b=require('bs58');const e=b.encode||b.default.encode;console.log(e(Uint8Array.from(require(process.env.HOME+'/.config/solana/id.json'))))"
+```
+
+The `b.encode||b.default.encode` is not superstition. This repo has three
+different major versions of `bs58` across its packages: v4 and v5 export
+`encode` directly, v6 moved it behind `.default`. The wrong form fails
+with `Cannot read properties of undefined (reading 'encode')`, which
+names neither `bs58` nor the version as the cause.
+
+Expect **88 characters**. If you get 44, you encoded the *public* key.
+
+> ⚠️ That output is the private key for the wallet that holds your devnet
+> SOL **and** is the protocol authority. Don't paste it into a chat, an
+> issue, or a screenshot. Clear the scrollback afterwards
+> (`clear && history -c`).
+
+**Then:**
+
+1. Phantom → **Settings → Developer Settings → Change Network** →
+   **Localhost** (or **Devnet** if testing the deployed program)
+2. **Add/Connect Wallet → Import Private Key** → paste the base58 string
+3. Open `/operator` → **Connect Wallet** → **Sign in with Solana**
+4. Approve the **signature** request — confirm Phantom shows a message,
+   not a transaction, and quotes no SOL fee
+5. The page reads *"Signed in as … This wallet matches the on-chain
+   protocol authority"* and the audit panel renders
+
+**Now prove the negative.** Create a second Phantom account and sign in
+with *that*:
+
+6. Switch Phantom to account 2, then **reload `/operator`**
+7. Confirm the address under the page title is account 2's, not the
+   authority's
+8. Click **Sign in with Solana** again — and stop there
+
+You should see *"This wallet is not the protocol authority, so the admin
+API refused with 403"*, and `admin/audit` at **403** in the Network tab.
+
+#### Two traps in that sequence
+
+**Switching wallets signs you out.** A stored session is bound to the
+wallet that created it, so selecting account 2 discards it by design —
+otherwise you'd stay authenticated as account 1. Account 2 needs its own
+sign-in. Switching back to account 1 signs you out again. If you switch
+after signing in, the admin panel disappears entirely and you see *no*
+403, because there's no session to refuse.
+
+**Seeing routers is not passing an auth check.** `/api/v1/routers` has no
+guard on it at all — it's public read data, and any wallet can list any
+owner's routers. Only `/api/v1/admin/*` carries
+`JwtAuthGuard, ProtocolAuthorityGuard`. A populated router table tells you
+nothing about authorization; the `admin/audit` status code is the only
+thing that does.
+
+#### What each account proves
+
+|                     | Authority wallet | Any other wallet |
+|---------------------|------------------|------------------|
+| `/routers?owner=`   | 200              | 200 — **public either way** |
+| `/auth/verify`      | 201              | 201 — **both authenticate** |
+| `/admin/audit`      | **200**          | **403** ← the only difference |
+
+Both wallets prove who they are. Only one is authorized. That gap between
+authentication and authorization is the demo — and the authority the API
+checks against is **derived from chain state**, not a role someone set in
+a table. `ProtocolAuthorityGuard` reads the `protocol` projection, which
+the indexer maintains from `ProtocolInitialized` events and the reconcile
+pass. So an authority rotation propagates on its own, with no deploy and
+no migration — but it lands at indexer latency, not instantly. Be precise
+about that if asked: it is not a per-request RPC, and that is a
+deliberate trade (an RPC on every admin call would be slower and would
+make the API fail whenever the RPC did).
+
+If the browser disagrees with the table above, it's session state, not
+the guard. Replay the same handshake headlessly with the script in
+[§7 Verify auth by hand](#verify-auth-by-hand) to isolate which side is
+wrong.
 
 ---
 
@@ -703,6 +780,10 @@ Every one of these was hit for real while building this.
 | Deployed API 404s on every route | `app.listen(port)` binds localhost, unreachable in a container | Already fixed — binds `0.0.0.0`. The tell is `x-render-routing: no-server` in the headers |
 | `BigInt literals are not available` | Package tsconfig targets es6 | Use `npm run lifecycle`, which overrides target to ES2020 |
 | First request to hosted API 404s | Render free tier sleeps when idle | Ping `/health` every 5 min with UptimeRobot |
+| `Cannot read properties of undefined (reading 'encode')` | `bs58` v4/v5 export `encode` directly; v6 moved it to `.default`, and this repo has all three | Use `const e=b.encode\|\|b.default.encode` — see [§8](#wallet-flow-manual--needs-a-browser) |
+| Phantom rejects the imported key | It wants base58; `id.json` is a JSON byte array | Convert first ([§8](#wallet-flow-manual--needs-a-browser)); expect 88 chars, not 44 |
+| Second wallet shows no 403, just an empty page | Switching accounts discards the session, and the admin panel only renders while signed in | Sign in **again** as the second account, then read the status |
+| Router list appears for a wallet you expected to be refused | `/api/v1/routers` is public and has no guard | Not a bug — only `/api/v1/admin/*` is gated; check `admin/audit`'s status |
 
 ---
 

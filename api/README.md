@@ -65,14 +65,20 @@ The challenge is stored in Redis with a 5-minute TTL and **deleted on
 first successful use**, so a captured signature can't mint a second
 session. Verified with `tweetnacl` against the wallet's own public key.
 
-### RBAC is bound to on-chain state, not a local role table
+### RBAC is bound to chain-derived state, not a local role table
 
-`ProtocolAuthorityGuard` checks the session wallet against whatever
-address is *currently* the protocol's on-chain `authority` (as
-reconciled by the indexer). If the real authority rotates — a multisig
-migration, an emergency key change — access follows automatically, with
-nothing to update in this service and no stale admin row to forget
-about.
+`ProtocolAuthorityGuard` checks the session wallet against the protocol's
+`authority` as recorded in the indexed `protocol` projection — never a
+role column anyone can edit. If the real authority rotates on-chain — a
+multisig migration, an emergency key change — access follows
+automatically, with nothing to update in this service and no stale admin
+row to forget about.
+
+It reads the projection rather than issuing an RPC per request: one
+indexed lookup instead of a network round-trip on every admin call, and
+the admin API stays up when the RPC provider doesn't. The trade is that a
+rotation lands at indexer latency, with the reconcile pass bounding how
+stale it can get.
 
 ## Design notes worth knowing
 

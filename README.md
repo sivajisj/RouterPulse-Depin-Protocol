@@ -29,6 +29,7 @@ Solana program (Rust/Anchor)      routerpulse/   epochs, staking, slashing, vest
 | [`api/`](api/README.md) | NestJS REST + WebSocket API, Sign-In-With-Solana auth, RBAC bound to on-chain authority |
 | [`web/`](web/README.md) | Next.js dashboard — network overview, router explorer, analytics, live event feed, wallet-authenticated operator view |
 | [`infrastructure/`](infrastructure/README.md) | Docker Compose stack and CI notes |
+| [`docs/guide.md`](docs/guide.md) | **Start here.** What changed from the prototype, how each layer works, and the interview questions with answers that survive follow-up |
 | [`docs/PHASES.md`](docs/PHASES.md) | The full roadmap: what's built, what's not, and the real bugs found along the way |
 | [`docs/resume-reference.md`](docs/resume-reference.md) | Verified metrics, résumé bullets, and interview talking points |
 | [`TESTING.md`](TESTING.md) | Full verification runbook — every suite, expected output, troubleshooting |
@@ -365,4 +366,14 @@ slash   =  staked_amount × slash_bps / 10000
 
 ## Full Setup Guide
 
-For detailed setup instructions, troubleshooting, and demo walkthrough see [SETUP_AND_RUN_GUIDE.md](./routerpulse/SETUP_AND_RUN_GUIDE.md)
+[**TESTING.md**](TESTING.md) is the authoritative runbook: every suite, the
+output each one should produce, the manual wallet pass, and a
+troubleshooting table of failures actually hit while building this.
+
+For the demo script, see [docs/demo.md](docs/demo.md). For cloud
+deployment, [docs/deployment.md](docs/deployment.md).
+
+> [`routerpulse/SETUP_AND_RUN_GUIDE.md`](./routerpulse/SETUP_AND_RUN_GUIDE.md)
+> is kept for the on-chain program in isolation. It predates the indexer,
+> API and dashboard and describes none of them — use TESTING.md for
+> anything involving the full stack.

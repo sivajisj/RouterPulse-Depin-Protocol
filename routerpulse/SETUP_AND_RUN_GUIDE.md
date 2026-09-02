@@ -1,6 +1,14 @@
-# RouterPulse — Setup, Run & Demo Guide
+# RouterPulse — Setup, Run & Demo Guide (on-chain program only)
 
-> Complete guide to set up, run, test, and simulate RouterPulse from scratch.
+> **Scope note.** This guide covers the Anchor program and simulator in
+> isolation. It was written before the indexer, API and dashboard existed
+> and describes none of them, so it is no longer the whole system.
+>
+> For the full stack — and for anything involving MongoDB, Redis, the API,
+> the dashboard or the wallet flow — use [`TESTING.md`](../TESTING.md).
+
+> Complete guide to set up, run, test, and simulate the on-chain program
+> from scratch.
 
 ---
 

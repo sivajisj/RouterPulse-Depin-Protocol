@@ -234,10 +234,23 @@ the treasury.
 > single-use and expires in 5 minutes.
 
 **Q: How is authorization decided?**
-> This is the part I'd highlight. RBAC isn't a role in a database — the
-> guard compares the session wallet against the authority address
-> **currently stored on-chain**. If the authority rotates to a multisig
-> tomorrow, access follows automatically with nothing to redeploy.
+> This is the part I'd highlight. There's no role column anyone can edit:
+> the guard compares the session wallet against the protocol authority as
+> **derived from chain state** — the `protocol` projection the indexer
+> maintains from events and the reconcile pass. If the authority rotates
+> to a multisig tomorrow, access follows automatically with nothing to
+> redeploy and no migration.
+
+> **Follow-up you should expect: "So you hit an RPC on every admin
+> request?"** No — it reads the projection, so it's a single indexed
+> Mongo lookup. That's deliberate. An RPC per admin call would add
+> latency to every request and would take the admin API down whenever the
+> RPC provider was down, which is trading a real availability property
+> for a freshness one I don't need. The cost is that a rotation lands at
+> indexer latency rather than instantly, and reconciliation bounds how
+> stale that can get. If the threat model demanded instant revocation I'd
+> read the account directly and cache it with a short TTL — but I'd want
+> that to be a decision, not an accident.
 
 ### Frontend
 

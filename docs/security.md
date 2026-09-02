@@ -90,10 +90,12 @@ don't cover it — e.g. `router_epoch.router == router.key()`,
   public key, and **deleted on first use** so a captured signature can't
   mint a second session. Tested: replay rejection, wrong-message
   signature rejection, garbage-token rejection.
-- **RBAC is bound to on-chain state**, not a local role table — the
-  admin guard compares the session wallet against whatever address is
-  currently the on-chain authority. Tested: an authenticated
-  non-authority wallet gets 403.
+- **RBAC is bound to chain-derived state**, not a local role table — the
+  admin guard compares the session wallet against the protocol authority
+  in the indexer-maintained projection, which no operator edits by hand.
+  A rotation therefore propagates on its own, bounded by indexer latency
+  rather than being instant; reconciliation caps how stale it can get.
+  Tested: an authenticated non-authority wallet gets 403.
 - **Rate limiting is a global guard**, so a new endpoint is protected by
   default rather than by remembering to decorate it.
 - **MongoDB is never authoritative.** The reconciliation worker

@@ -33,8 +33,14 @@ Check before anyone is watching:
 - `curl localhost:3001/health` → `{"status":"ok","mongo":"up","redis":"up"}`
 - `localhost:3000` renders with routers listed
 - Phantom is set to **localhost** and holds the wallet at
-  `~/.config/solana/id.json` (import the private key), with SOL and
-  reward tokens
+  `~/.config/solana/id.json`, with SOL and reward tokens. Phantom wants
+  base58, not the CLI's JSON byte array — convert it first, or the import
+  fails in front of an audience:
+  ```bash
+  node -e "const b=require('bs58');const e=b.encode||b.default.encode;console.log(e(Uint8Array.from(require(process.env.HOME+'/.config/solana/id.json'))))"
+  ```
+  Do this well before the demo, and clear the scrollback afterwards —
+  that string is the authority key.
 
 > Epochs are 120s in this config. Two minutes of real time must pass
 > before an epoch can be finalized — you cannot rush it. Plan the
@@ -85,8 +91,11 @@ signed-in wallet against the authority address currently stored
 on-chain. If the authority rotates to a multisig tomorrow, access
 follows automatically with nothing to redeploy.*
 
-**If asked to prove it:** disconnect, connect any other wallet, sign in
-again — same endpoint returns **403**.
+**If asked to prove it:** switch to a second Phantom account, reload
+`/operator`, and **sign in again** — same endpoint returns **403**. The
+second sign-in is not optional: switching accounts discards the session
+by design, and without one the panel simply disappears rather than
+showing the refusal you're trying to demonstrate.
 
 ### 6. Register a router, live
 Use the operator form. When the device key is revealed, say: *shown
