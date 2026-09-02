@@ -16,7 +16,13 @@ export const RPC_URL   = process.env.RPC_URL   || "http://127.0.0.1:8899";
 export const WS_URL: string | undefined = process.env.WS_URL;
 export const MONGO_URL = process.env.MONGO_URL || "mongodb://127.0.0.1:27017";
 export const MONGO_DB  = process.env.MONGO_DB  || "routerpulse";
-export const IDL_PATH  = path.resolve(__dirname, "..", process.env.IDL_PATH || "../routerpulse/target/idl/routerpulse.json");
+// Resolves to `indexer/<IDL_PATH>` from both `src/` (ts-node) and `dist/`
+// (compiled), so the same default works in dev and in a container. The
+// default is the *vendored* copy rather than anchor's build output:
+// deployments only check out this repo, and `routerpulse/target/` is
+// gitignored build artifact that would not be there. Run `npm run
+// sync-idl` after changing the program.
+export const IDL_PATH  = path.resolve(__dirname, "..", process.env.IDL_PATH || "idl/routerpulse.json");
 export const RECONCILE_INTERVAL_MS = Number(process.env.RECONCILE_INTERVAL_MS || 30_000);
 // Optional: when set, newly-indexed events are published here for the
 // API's WebSocket gateway to fan out. Indexing works fine without it.

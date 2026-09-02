@@ -1,0 +1,3492 @@
+{
+  "address": "4nVLSAiwNCBiepWwHdiafKcGzKHtaKu8YSPk24REG6d4",
+  "metadata": {
+    "name": "routerpulse",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "DePIN Wi-Fi uptime tracking protocol on Solana"
+  },
+  "instructions": [
+    {
+      "name": "apply_penalty",
+      "discriminator": [
+        19,
+        104,
+        223,
+        75,
+        110,
+        60,
+        133,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router.owner",
+                "account": "Router"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "burn_treasury",
+      "discriminator": [
+        28,
+        51,
+        163,
+        227,
+        28,
+        113,
+        228,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint",
+          "writable": true
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_reward",
+      "discriminator": [
+        149,
+        95,
+        181,
+        242,
+        94,
+        90,
+        158,
+        162
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "router_epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114,
+                  95,
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vesting",
+          "docs": [
+            "`init` (not `init_if_needed`): one vesting record per epoch,",
+            "ever. Combined with the `claimed` flag on the epoch, this makes",
+            "double-claiming fail two independent ways."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "router"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_number",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_vested",
+      "discriminator": [
+        208,
+        190,
+        166,
+        114,
+        203,
+        225,
+        140,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "beneficiary"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vesting",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint",
+          "writable": true
+        },
+        {
+          "name": "beneficiary_token_account",
+          "writable": true
+        },
+        {
+          "name": "beneficiary",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_number",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "decommission_router",
+      "discriminator": [
+        128,
+        237,
+        74,
+        233,
+        52,
+        171,
+        5,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router.owner",
+                "account": "Router"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "finalize_router_epoch",
+      "discriminator": [
+        240,
+        140,
+        101,
+        139,
+        60,
+        202,
+        168,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "router"
+        },
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "router_epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114,
+                  95,
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "emission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cranker",
+          "docs": [
+            "Whoever is turning the crank. Pays rent for the epoch's emission",
+            "account if they happen to be the first to finalize it; otherwise",
+            "only the transaction fee. Deliberately not required to be the",
+            "operator or the authority."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_number",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "heartbeat",
+      "discriminator": [
+        202,
+        104,
+        56,
+        6,
+        240,
+        170,
+        63,
+        134
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router.owner",
+                "account": "Router"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "device",
+          "docs": [
+            "The device key registered for this router — NOT the owner",
+            "wallet. See `rotate_device_key` for recovery from a compromised",
+            "device."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "router_epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114,
+                  95,
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_number",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize_protocol",
+      "discriminator": [
+        188,
+        233,
+        252,
+        106,
+        134,
+        146,
+        202,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint",
+          "docs": [
+            "Reward mint, created here as a PDA with the protocol PDA as its",
+            "sole mint authority. No freeze authority is set: the protocol",
+            "can issue and slash, but must not be able to freeze a holder's",
+            "tokens."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  119,
+                  97,
+                  114,
+                  100,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_vault",
+          "docs": [
+            "Holds every operator's staked collateral."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "docs": [
+            "Receives slashed collateral."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "config",
+          "type": {
+            "defined": {
+              "name": "ProtocolConfig"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "mint_genesis",
+      "discriminator": [
+        125,
+        66,
+        173,
+        83,
+        12,
+        191,
+        82,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint",
+          "writable": true
+        },
+        {
+          "name": "recipient_token_account",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "pause_protocol",
+      "discriminator": [
+        144,
+        95,
+        0,
+        107,
+        119,
+        39,
+        248,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_router",
+      "discriminator": [
+        53,
+        247,
+        40,
+        123,
+        159,
+        75,
+        26,
+        54
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "router_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "router_id",
+          "type": "string"
+        },
+        {
+          "name": "location_lat",
+          "type": "i64"
+        },
+        {
+          "name": "location_long",
+          "type": "i64"
+        },
+        {
+          "name": "device_pubkey",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "reinstate_router",
+      "discriminator": [
+        66,
+        29,
+        229,
+        96,
+        250,
+        200,
+        183,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router.owner",
+                "account": "Router"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resume_protocol",
+      "discriminator": [
+        62,
+        91,
+        76,
+        18,
+        174,
+        87,
+        87,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "rotate_device_key",
+      "discriminator": [
+        96,
+        133,
+        177,
+        36,
+        92,
+        46,
+        59,
+        153
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "router"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_device_pubkey",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "slash_router",
+      "discriminator": [
+        113,
+        251,
+        159,
+        224,
+        119,
+        20,
+        237,
+        24
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true
+        },
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "router_epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114,
+                  95,
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_number"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint"
+        },
+        {
+          "name": "stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_number",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "stake",
+      "discriminator": [
+        206,
+        176,
+        202,
+        18,
+        200,
+        209,
+        179,
+        108
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint"
+        },
+        {
+          "name": "stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "router"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "unstake",
+      "discriminator": [
+        90,
+        95,
+        107,
+        42,
+        205,
+        124,
+        50,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "router",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  117,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "router.router_id",
+                "account": "Router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "router"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reward_mint"
+        },
+        {
+          "name": "stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_token_account",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "router",
+            "stake"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_reward_rate",
+      "discriminator": [
+        105,
+        157,
+        0,
+        185,
+        21,
+        144,
+        163,
+        159
+      ],
+      "accounts": [
+        {
+          "name": "protocol",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_rate",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "EmissionSchedule",
+      "discriminator": [
+        124,
+        49,
+        254,
+        56,
+        35,
+        98,
+        181,
+        88
+      ]
+    },
+    {
+      "name": "Protocol",
+      "discriminator": [
+        45,
+        39,
+        101,
+        43,
+        115,
+        72,
+        131,
+        40
+      ]
+    },
+    {
+      "name": "RewardVesting",
+      "discriminator": [
+        211,
+        173,
+        154,
+        34,
+        176,
+        0,
+        218,
+        105
+      ]
+    },
+    {
+      "name": "Router",
+      "discriminator": [
+        94,
+        226,
+        217,
+        169,
+        186,
+        4,
+        198,
+        7
+      ]
+    },
+    {
+      "name": "RouterEpoch",
+      "discriminator": [
+        143,
+        186,
+        121,
+        26,
+        147,
+        98,
+        146,
+        135
+      ]
+    },
+    {
+      "name": "Stake",
+      "discriminator": [
+        150,
+        197,
+        176,
+        29,
+        55,
+        132,
+        112,
+        149
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CollateralStaked",
+      "discriminator": [
+        21,
+        210,
+        241,
+        57,
+        33,
+        53,
+        85,
+        196
+      ]
+    },
+    {
+      "name": "CollateralUnstaked",
+      "discriminator": [
+        153,
+        164,
+        224,
+        236,
+        70,
+        115,
+        122,
+        85
+      ]
+    },
+    {
+      "name": "DeviceKeyRotated",
+      "discriminator": [
+        220,
+        43,
+        143,
+        107,
+        183,
+        120,
+        161,
+        59
+      ]
+    },
+    {
+      "name": "GenesisMinted",
+      "discriminator": [
+        128,
+        76,
+        96,
+        126,
+        180,
+        149,
+        231,
+        231
+      ]
+    },
+    {
+      "name": "HeartbeatReceived",
+      "discriminator": [
+        229,
+        109,
+        172,
+        88,
+        224,
+        82,
+        95,
+        36
+      ]
+    },
+    {
+      "name": "PenaltyApplied",
+      "discriminator": [
+        129,
+        70,
+        75,
+        133,
+        83,
+        87,
+        163,
+        224
+      ]
+    },
+    {
+      "name": "ProtocolInitialized",
+      "discriminator": [
+        173,
+        122,
+        168,
+        254,
+        9,
+        118,
+        76,
+        132
+      ]
+    },
+    {
+      "name": "ProtocolPaused",
+      "discriminator": [
+        35,
+        111,
+        245,
+        138,
+        237,
+        199,
+        79,
+        223
+      ]
+    },
+    {
+      "name": "ProtocolResumed",
+      "discriminator": [
+        205,
+        48,
+        245,
+        118,
+        230,
+        93,
+        98,
+        235
+      ]
+    },
+    {
+      "name": "RewardClaimed",
+      "discriminator": [
+        49,
+        28,
+        87,
+        84,
+        158,
+        48,
+        229,
+        175
+      ]
+    },
+    {
+      "name": "RewardRateUpdated",
+      "discriminator": [
+        176,
+        128,
+        176,
+        106,
+        40,
+        165,
+        210,
+        144
+      ]
+    },
+    {
+      "name": "RouterDecommissioned",
+      "discriminator": [
+        189,
+        13,
+        104,
+        129,
+        87,
+        9,
+        23,
+        120
+      ]
+    },
+    {
+      "name": "RouterEpochFinalized",
+      "discriminator": [
+        116,
+        36,
+        8,
+        142,
+        73,
+        135,
+        151,
+        182
+      ]
+    },
+    {
+      "name": "RouterRegistered",
+      "discriminator": [
+        75,
+        247,
+        99,
+        179,
+        101,
+        158,
+        104,
+        2
+      ]
+    },
+    {
+      "name": "RouterReinstated",
+      "discriminator": [
+        33,
+        140,
+        33,
+        57,
+        113,
+        2,
+        81,
+        218
+      ]
+    },
+    {
+      "name": "RouterSlashed",
+      "discriminator": [
+        114,
+        126,
+        133,
+        58,
+        147,
+        119,
+        242,
+        110
+      ]
+    },
+    {
+      "name": "RouterSuspended",
+      "discriminator": [
+        87,
+        19,
+        56,
+        158,
+        208,
+        196,
+        116,
+        200
+      ]
+    },
+    {
+      "name": "TreasuryBurned",
+      "discriminator": [
+        244,
+        26,
+        252,
+        60,
+        151,
+        14,
+        19,
+        173
+      ]
+    },
+    {
+      "name": "VestedRewardClaimed",
+      "discriminator": [
+        73,
+        231,
+        71,
+        70,
+        81,
+        237,
+        55,
+        204
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidRewardRate",
+      "msg": "Reward rate must be greater than zero"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidPenaltyBps",
+      "msg": "Penalty basis points must be between 0 and 10000"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidHeartbeatInterval",
+      "msg": "Heartbeat interval must be at least 60 seconds"
+    },
+    {
+      "code": 6003,
+      "name": "ProtocolPaused",
+      "msg": "Protocol is currently paused"
+    },
+    {
+      "code": 6004,
+      "name": "AlreadyPaused",
+      "msg": "Protocol is already paused"
+    },
+    {
+      "code": 6005,
+      "name": "NotPaused",
+      "msg": "Protocol is not paused"
+    },
+    {
+      "code": 6006,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6007,
+      "name": "RouterIdEmpty",
+      "msg": "Router ID cannot be empty"
+    },
+    {
+      "code": 6008,
+      "name": "RouterIdTooLong",
+      "msg": "Router ID cannot exceed 32 characters"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidLatitude",
+      "msg": "Invalid latitude"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidLongitude",
+      "msg": "Invalid longitude"
+    },
+    {
+      "code": 6011,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6012,
+      "name": "RouterNotSuspended",
+      "msg": "Router is not suspended"
+    },
+    {
+      "code": 6013,
+      "name": "RouterSuspended",
+      "msg": "Router is suspended"
+    },
+    {
+      "code": 6014,
+      "name": "RouterDecommissioned",
+      "msg": "Router is decommissioned"
+    },
+    {
+      "code": 6015,
+      "name": "HeartbeatTooSoon",
+      "msg": "Heartbeat too soon"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidTimestamp",
+      "msg": "Invalid timestamp"
+    },
+    {
+      "code": 6017,
+      "name": "RouterNotActive",
+      "msg": "Router must be Active to claim rewards"
+    },
+    {
+      "code": 6018,
+      "name": "NoHeartbeatYet",
+      "msg": "No heartbeat sent yet"
+    },
+    {
+      "code": 6019,
+      "name": "NothingToClaim",
+      "msg": "No rewards to claim"
+    },
+    {
+      "code": 6020,
+      "name": "InsufficientVaultBalance",
+      "msg": "Vault has insufficient balance"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidEpochDuration",
+      "msg": "Epoch duration must span at least a handful of heartbeat intervals"
+    },
+    {
+      "code": 6022,
+      "name": "WrongEpochNumber",
+      "msg": "Supplied epoch number does not match the current on-chain clock"
+    },
+    {
+      "code": 6023,
+      "name": "EpochNotEnded",
+      "msg": "Epoch has not ended yet"
+    },
+    {
+      "code": 6024,
+      "name": "EpochAlreadyFinalized",
+      "msg": "Epoch has already been finalized"
+    },
+    {
+      "code": 6025,
+      "name": "EpochNotFinalized",
+      "msg": "Epoch has not been finalized yet"
+    },
+    {
+      "code": 6026,
+      "name": "EpochAlreadyClaimed",
+      "msg": "Epoch reward has already been claimed"
+    },
+    {
+      "code": 6027,
+      "name": "EpochRouterMismatch",
+      "msg": "This epoch record does not belong to the given router"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidDeviceSigner",
+      "msg": "Signer is not the router's registered device key"
+    },
+    {
+      "code": 6029,
+      "name": "DeviceKeyUnchanged",
+      "msg": "New device key must differ from the current one"
+    },
+    {
+      "code": 6030,
+      "name": "InvalidStakeAmount",
+      "msg": "Stake amount must be greater than zero"
+    },
+    {
+      "code": 6031,
+      "name": "InsufficientStake",
+      "msg": "Router has not staked the protocol minimum"
+    },
+    {
+      "code": 6032,
+      "name": "StakeLocked",
+      "msg": "Staked collateral is still within its lock period"
+    },
+    {
+      "code": 6033,
+      "name": "UnstakeExceedsStake",
+      "msg": "Cannot unstake more than is currently staked"
+    },
+    {
+      "code": 6034,
+      "name": "UnstakeBelowMinimum",
+      "msg": "Unstaking would drop an active router below the minimum stake"
+    },
+    {
+      "code": 6035,
+      "name": "EpochAlreadySlashed",
+      "msg": "This epoch has already been slashed"
+    },
+    {
+      "code": 6036,
+      "name": "NothingToSlash",
+      "msg": "This epoch's performance does not warrant a slash"
+    },
+    {
+      "code": 6037,
+      "name": "StakeRouterMismatch",
+      "msg": "Stake account does not belong to the given router"
+    },
+    {
+      "code": 6038,
+      "name": "EmissionExhausted",
+      "msg": "Epoch emission budget is exhausted"
+    },
+    {
+      "code": 6039,
+      "name": "InvalidEmissionDecay",
+      "msg": "Emission decay must be between 1 and 10000 basis points"
+    },
+    {
+      "code": 6040,
+      "name": "InvalidVestingSchedule",
+      "msg": "Vesting duration must be at least the cliff duration"
+    },
+    {
+      "code": 6041,
+      "name": "NothingVested",
+      "msg": "No tokens have vested yet"
+    },
+    {
+      "code": 6042,
+      "name": "VestingRouterMismatch",
+      "msg": "Vesting record does not belong to the given router"
+    },
+    {
+      "code": 6043,
+      "name": "InvalidRewardMint",
+      "msg": "Token mint does not match the protocol reward mint"
+    },
+    {
+      "code": 6044,
+      "name": "InvalidBurnAmount",
+      "msg": "Burn amount must be greater than zero"
+    },
+    {
+      "code": 6045,
+      "name": "GenesisAllocationExhausted",
+      "msg": "Genesis allocation is exhausted"
+    }
+  ],
+  "types": [
+    {
+      "name": "CollateralStaked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_staked",
+            "type": "u64"
+          },
+          {
+            "name": "locked_until",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollateralUnstaked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DeviceKeyRotated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "device_key_version",
+            "type": "u16"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EmissionSchedule",
+      "docs": [
+        "Per-epoch emission budget — the hard cap on how many reward tokens",
+        "that epoch can ever mint.",
+        "",
+        "Created lazily on the first `finalize_router_epoch` for an epoch and",
+        "debited by each router's reward as it finalizes. Without this, reward",
+        "issuance would be unbounded: `reward_rate * epoch_duration * routers`",
+        "grows with the router count, so a Sybil operator registering many",
+        "routers could inflate supply arbitrarily. Here, extra routers dilute",
+        "a fixed pool instead of expanding it."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch_number",
+            "type": "u64"
+          },
+          {
+            "name": "total_emission",
+            "docs": [
+              "Budget for this epoch, snapshotted at creation from the",
+              "protocol's decaying emission curve."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "allocated",
+            "docs": [
+              "Sum of all rewards finalized against this epoch so far."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GenesisMinted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "genesis_minted",
+            "type": "u64"
+          },
+          {
+            "name": "genesis_remaining",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "HeartbeatReceived",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_number",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "uptime_score",
+            "type": "u8"
+          },
+          {
+            "name": "was_on_time",
+            "type": "bool"
+          },
+          {
+            "name": "is_first",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PenaltyApplied",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "penalty_amount",
+            "type": "u64"
+          },
+          {
+            "name": "uptime_score",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Protocol",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "The admin who can update protocol settings"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_rate",
+            "docs": [
+              "Reward tokens earned per second of uptime per router"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "penalty_bps",
+            "type": "u16"
+          },
+          {
+            "name": "heartbeat_interval",
+            "type": "i64"
+          },
+          {
+            "name": "epoch_duration",
+            "docs": [
+              "Length of one reward epoch, in seconds. Rewards are only ever",
+              "paid out for a *closed* epoch, computed from heartbeats actually",
+              "received inside that epoch's time window — never from a lifetime",
+              "counter that can go stale while a router is silently offline."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "genesis_time",
+            "docs": [
+              "Unix timestamp the protocol was initialized. Epoch numbers are",
+              "derived deterministically from this, so no cross-router cranking",
+              "is ever required to \"advance\" the epoch clock."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "reward_mint",
+            "docs": [
+              "SPL mint for the reward token. Mint authority is the protocol",
+              "PDA itself, so issuance is only ever possible through this",
+              "program's instructions — never by a human holding a key."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "min_stake",
+            "docs": [
+              "Collateral a router must have staked before it may heartbeat or",
+              "earn. This is what gives slashing teeth."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "stake_lock_duration",
+            "docs": [
+              "How long staked collateral is locked after each `stake` call."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "reward_cliff_duration",
+            "docs": [
+              "Cliff/duration applied to every epoch reward entitlement."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "reward_vesting_duration",
+            "type": "i64"
+          },
+          {
+            "name": "initial_emission_per_epoch",
+            "docs": [
+              "Per-epoch emission budget before decay, and the decay curve."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "epochs_per_year",
+            "type": "u64"
+          },
+          {
+            "name": "emission_decay_bps",
+            "type": "u16"
+          },
+          {
+            "name": "genesis_allocation",
+            "docs": [
+              "Hard cap on the initial distribution. Rewards can only be minted",
+              "by vesting, and staking requires already holding tokens — so",
+              "without a genesis allocation no operator could ever bootstrap.",
+              "Fixed at initialization and enforced on-chain, so the authority",
+              "can distribute up to this much and then never mint again."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "genesis_minted",
+            "type": "u64"
+          },
+          {
+            "name": "total_routers",
+            "type": "u64"
+          },
+          {
+            "name": "total_rewards_distributed",
+            "type": "u64"
+          },
+          {
+            "name": "total_staked",
+            "type": "u64"
+          },
+          {
+            "name": "total_slashed",
+            "type": "u64"
+          },
+          {
+            "name": "total_minted",
+            "type": "u64"
+          },
+          {
+            "name": "total_burned",
+            "type": "u64"
+          },
+          {
+            "name": "is_paused",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "reward_rate",
+            "type": "u64"
+          },
+          {
+            "name": "penalty_bps",
+            "type": "u16"
+          },
+          {
+            "name": "heartbeat_interval",
+            "type": "i64"
+          },
+          {
+            "name": "epoch_duration",
+            "type": "i64"
+          },
+          {
+            "name": "min_stake",
+            "type": "u64"
+          },
+          {
+            "name": "stake_lock_duration",
+            "type": "i64"
+          },
+          {
+            "name": "reward_cliff_duration",
+            "type": "i64"
+          },
+          {
+            "name": "reward_vesting_duration",
+            "type": "i64"
+          },
+          {
+            "name": "initial_emission_per_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "epochs_per_year",
+            "type": "u64"
+          },
+          {
+            "name": "emission_decay_bps",
+            "type": "u16"
+          },
+          {
+            "name": "genesis_allocation",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_rate",
+            "type": "u64"
+          },
+          {
+            "name": "penalty_bps",
+            "type": "u16"
+          },
+          {
+            "name": "heartbeat_interval",
+            "type": "i64"
+          },
+          {
+            "name": "epoch_duration",
+            "type": "i64"
+          },
+          {
+            "name": "min_stake",
+            "type": "u64"
+          },
+          {
+            "name": "genesis_time",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolPaused",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolResumed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_number",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "uptime_bps",
+            "type": "u16"
+          },
+          {
+            "name": "cliff_duration",
+            "type": "i64"
+          },
+          {
+            "name": "vesting_duration",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardRateUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "previous_rate",
+            "type": "u64"
+          },
+          {
+            "name": "new_rate",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RewardVesting",
+      "docs": [
+        "One epoch's reward entitlement, released on a cliff + linear",
+        "schedule.",
+        "",
+        "No tokens are moved when this is created — it records only the",
+        "right to mint. `claim_vested` mints the newly-vested slice straight",
+        "to the operator, so supply grows exactly in step with what has",
+        "actually vested and there is no vault balance to drift out of sync",
+        "or be drained."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "beneficiary",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_number",
+            "type": "u64"
+          },
+          {
+            "name": "total_amount",
+            "docs": [
+              "Full entitlement for the epoch. `claimed` can never exceed it."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "claimed_amount",
+            "type": "u64"
+          },
+          {
+            "name": "start_time",
+            "type": "i64"
+          },
+          {
+            "name": "cliff_duration",
+            "docs": [
+              "Nothing vests before `start_time + cliff_duration`."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "vesting_duration",
+            "docs": [
+              "Fully vested at `start_time + vesting_duration`."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Router",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "The wallet that owns and operates this router.",
+              "Responsible for paying penalties and receiving rewards.",
+              "This is NOT the key that signs heartbeats — see `device_pubkey`."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "device_pubkey",
+            "docs": [
+              "The key that signs heartbeat transactions on behalf of the",
+              "physical device. Separated from `owner` so the operator's main",
+              "wallet is never exposed to an unattended router, and so a",
+              "compromised device can be recovered via `rotate_device_key`",
+              "without re-registering the router."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "device_key_version",
+            "docs": [
+              "Incremented every time the device key is rotated. Lets an",
+              "indexer / audit trail distinguish \"old device, new device\"",
+              "heartbeats after a recovery event."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "router_id",
+            "docs": [
+              "Unique hardware identifier , max 32 characters",
+              "Example: \"router-mumbai-001\" or device MAC hash"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "location_lat",
+            "docs": [
+              "GPS coordinates as fixed-point integers",
+              "Multiply actual coordinate by 1_000_000",
+              "Example: 19.0760° → 19_076_000",
+              "Avoids floating point (not supported in Solana BPF)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "location_long",
+            "type": "i64"
+          },
+          {
+            "name": "registered_at",
+            "docs": [
+              "Unix timestamp when router was registered"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_heartbeat",
+            "docs": [
+              "Unix timestamp of most recent heartbeat"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "uptime_score",
+            "docs": [
+              "Real-time uptime score 0–100, used only for fast suspension",
+              "response. This is a complementary signal to the per-epoch",
+              "reward accounting in `RouterEpoch` — it reacts immediately to",
+              "bad behaviour but is never itself used to compute a payout."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "total_rewards",
+            "docs": [
+              "Lifetime earnings in token units"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_penalties",
+            "docs": [
+              "Lifetime penalties deducted"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "heartbeat_count",
+            "docs": [
+              "Total heartbeats received"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "missed_heartbeats",
+            "docs": [
+              "Total heartbeats missed or late"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_claim_time",
+            "type": "i64"
+          },
+          {
+            "name": "staked_amount",
+            "docs": [
+              "Mirror of the router's `Stake.amount`, denormalized onto the",
+              "router so `heartbeat` can enforce the minimum-stake gate without",
+              "loading a second account on every single check-in. Kept in sync",
+              "by stake / unstake / slash — those are the only writers."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Current operational status of this router"
+            ],
+            "type": {
+              "defined": {
+                "name": "RouterStatus"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Canonical PDA bump — stored during registration"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterDecommissioned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterEpoch",
+      "docs": [
+        "Per-router, per-epoch performance record. Created lazily on a",
+        "router's first heartbeat inside a given epoch, closed by",
+        "`finalize_router_epoch` once the epoch's time window has elapsed,",
+        "and consumed exactly once by `claim_reward`.",
+        "",
+        "This account — not the lifetime counters on `Router` — is the",
+        "source of truth for rewards. A router that goes silent simply never",
+        "accumulates a `RouterEpoch` for the epochs it missed, so it cannot",
+        "coast on a stale historical uptime percentage the way a",
+        "claim-from-lifetime-average design would allow."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_number",
+            "type": "u64"
+          },
+          {
+            "name": "start_time",
+            "type": "i64"
+          },
+          {
+            "name": "end_time",
+            "type": "i64"
+          },
+          {
+            "name": "heartbeats",
+            "docs": [
+              "Heartbeats actually received inside [start_time, end_time)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "expected_heartbeats",
+            "docs": [
+              "ceil(epoch_duration / heartbeat_interval) at the time this",
+              "epoch record was opened — the denominator for uptime_bps."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "finalized",
+            "docs": [
+              "Set once by `finalize_router_epoch`, after which `heartbeats`",
+              "is frozen and a reward amount is locked in."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "claimed",
+            "docs": [
+              "Set once by `claim_reward`. Prevents double-claiming the same",
+              "epoch."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "uptime_bps",
+            "docs": [
+              "Uptime for this epoch in basis points (0-10_000), fixed at",
+              "finalization time."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "reward_amount",
+            "docs": [
+              "Reward token amount locked in at finalization, granted verbatim",
+              "on claim. Already has the performance-tier multiplier applied",
+              "and is capped by the epoch's remaining emission budget."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slash_amount",
+            "docs": [
+              "Collateral to slash for this epoch's performance, fixed at",
+              "finalization from the same tier table as the reward."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "slashed",
+            "docs": [
+              "Set once by `slash_router`, so one bad epoch can only ever be",
+              "slashed a single time."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterEpochFinalized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_number",
+            "type": "u64"
+          },
+          {
+            "name": "heartbeats",
+            "type": "u32"
+          },
+          {
+            "name": "expected_heartbeats",
+            "type": "u32"
+          },
+          {
+            "name": "uptime_bps",
+            "type": "u16"
+          },
+          {
+            "name": "reward_multiplier_bps",
+            "type": "u16"
+          },
+          {
+            "name": "reward_amount",
+            "type": "u64"
+          },
+          {
+            "name": "slash_amount",
+            "type": "u64"
+          },
+          {
+            "name": "emission_remaining",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "device_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "location_lat",
+            "type": "i64"
+          },
+          {
+            "name": "location_long",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterReinstated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "uptime_score",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterSlashed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_number",
+            "type": "u64"
+          },
+          {
+            "name": "uptime_bps",
+            "type": "u16"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_stake",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Inactive"
+          },
+          {
+            "name": "Suspended"
+          },
+          {
+            "name": "Decommissioned"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RouterSuspended",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router_id",
+            "type": "string"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "uptime_score",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Stake",
+      "docs": [
+        "Per-router stake position. Collateral an operator must post before a",
+        "router can earn: it is what makes slashing meaningful, since a",
+        "router with nothing at risk can spam bad uptime for free.",
+        "",
+        "The tokens themselves live in one shared protocol-owned stake vault;",
+        "this account is the per-router accounting record against it."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Currently staked, net of anything already slashed."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_slashed",
+            "docs": [
+              "Lifetime total slashed away from this position."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "locked_until",
+            "docs": [
+              "Unstaking is blocked until this timestamp. Set forward on every",
+              "new stake so collateral can't be posted to pass an activation",
+              "check and then yanked out in the same epoch."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TreasuryBurned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_burned",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VestedRewardClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "pubkey"
+          },
+          {
+            "name": "beneficiary",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_number",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_claimed",
+            "type": "u64"
+          },
+          {
+            "name": "total_amount",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ]
+}

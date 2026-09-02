@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "description": "Event-driven Solana indexer for RouterPulse: decodes on-chain program events into MongoDB operational + audit collections.",
   "scripts": {
-    "start": "ts-node src/index.ts",
-    "backfill": "ts-node src/backfill.ts",
-    "reconcile": "ts-node src/reconcile.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:dev": "ts-node src/index.ts",
+    "backfill": "node dist/backfill.js",
+    "backfill:dev": "ts-node src/backfill.ts",
+    "reconcile": "node dist/reconcile.js",
+    "reconcile:dev": "ts-node src/reconcile.ts",
+    "sync-idl": "cp ../routerpulse/target/idl/routerpulse.json idl/routerpulse.json"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
