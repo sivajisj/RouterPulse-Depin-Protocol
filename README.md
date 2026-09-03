@@ -1,6 +1,7 @@
 # RouterPulse
 
-A trustless Wi-Fi router uptime tracking and reward distribution protocol built on Solana.
+A trustless Wi-Fi router uptime tracking and reward distribution protocol built on Solana..
+
 
 Inspired by the real infrastructure problem that Wi-Fi networks like Wifi Dabba are solving , operators currently self-report uptime with no way to verify it. RouterPulse replaces that with cryptographic proof stored on-chain.
 
