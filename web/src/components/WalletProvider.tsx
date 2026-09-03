@@ -3,7 +3,13 @@
 import { useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
+// Imported from their individual packages, not the @solana/wallet-adapter-wallets
+// meta-package. That meta-package depends on every adapter it knows about —
+// including Trezor, whose transport chain ends at the native `usb` module, which
+// needs Python and node-gyp to build. That breaks any slim container image for
+// two wallets we don't offer. Adding an adapter here means adding its package.
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { RPC_URL } from "@/lib/api";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
