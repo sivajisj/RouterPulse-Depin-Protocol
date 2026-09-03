@@ -3,7 +3,7 @@ import * as anchor    from "@coral-xyz/anchor";
 import { getOrCreateAssociatedTokenAccount, getAccount, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import BN from "bn.js";
 import {
-    loadWallet, loadProgram, RPC_URL, HEARTBEAT_INTERVAL_MS,
+    loadWallet, loadProgram, RPC_URL, HEARTBEAT_INTERVAL_MS, RUN_DURATION_MS,
     getProtocolPDA, getRewardMintPDA, getStakeVaultPDA,
 } from "./config";
 import { RouterSimulator, RouterConfig } from "./router";
@@ -111,8 +111,27 @@ async function main() {
 
     // start all routers in parallel
     console.log("💓 Starting heartbeats...\n");
+
+    // A scheduled run has to end on its own. Stopping the simulators is
+    // a *request* — each finishes the heartbeat it's mid-way through and
+    // then exits its loop, so no transaction is abandoned unconfirmed.
+    if (RUN_DURATION_MS > 0) {
+        console.log(`   Bounded run: stopping after ${Math.round(RUN_DURATION_MS / 1000)}s.\n`);
+        setTimeout(() => {
+            console.log("\n⏱️  Duration reached — finishing in-flight heartbeats...");
+            simulators.forEach(sim => sim.stop());
+        }, RUN_DURATION_MS).unref();
+    }
+
+    // Staggered, not simultaneous. Every router firing on the same tick is
+    // both unrealistic and the quickest way to trip a shared RPC's rate
+    // limit — the public devnet endpoint refuses three concurrent senders
+    // almost immediately.
     await Promise.all(
-        simulators.map(sim => sim.start(HEARTBEAT_INTERVAL_MS))
+        simulators.map(async (sim, i) => {
+            await sleep(i * STAGGER_MS);
+            return sim.start(HEARTBEAT_INTERVAL_MS);
+        })
     );
 
     // print final stats
@@ -122,6 +141,10 @@ async function main() {
         console.log(`  ${stats.routerId}: sent=${stats.sent} missed=${stats.missed}`);
     }
 }
+
+/// Spacing between router starts, so they interleave rather than
+/// colliding on every tick.
+const STAGGER_MS = Number(process.env.STAGGER_MS || 1_500);
 
 function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));

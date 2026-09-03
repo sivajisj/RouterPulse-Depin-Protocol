@@ -1,11 +1,34 @@
 import * as anchor from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { createHash } from "crypto";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {
     currentEpochNumber, getRouterEpochPDA, getStakePDA, getVestingPDA, getEmissionPDA,
 } from "./config";
 // Imported directly (not via anchor.BN) — see tests/routerpulse.ts for why.
 import BN from "bn.js";
+
+/// A heartbeat costs ~5000 lamports, so this funds thousands of them.
+/// The old code airdropped a full 1 SOL per device, which the devnet
+/// faucet will not sustain and which nothing here needs.
+const DEVICE_FUND_LAMPORTS = 0.02 * LAMPORTS_PER_SOL;
+const DEVICE_MIN_LAMPORTS  = 0.005 * LAMPORTS_PER_SOL;
+
+/// Device keys are throwaway by design — a real router holds its own, and
+/// losing one is recovered with `rotate_device_key` rather than by
+/// re-registering. For an interactive demo a fresh key each run is the
+/// honest simulation, and shows rotation working.
+///
+/// A *scheduled* run can't afford that: every new key is an unfunded
+/// account needing SOL it will never give back. With DEVICE_KEY_SEED set,
+/// keys are derived from (seed, routerId) instead, so repeat runs reuse
+/// the same devices and fund them once.
+function deriveDevice(routerId: string): anchor.web3.Keypair {
+    const seed = process.env.DEVICE_KEY_SEED;
+    if (!seed) return anchor.web3.Keypair.generate();
+    const digest = createHash("sha256").update(`${seed}:${routerId}`).digest();
+    return anchor.web3.Keypair.fromSeed(Uint8Array.from(digest.subarray(0, 32)));
+}
 
 export interface RouterConfig {
     routerId: string;
@@ -51,7 +74,7 @@ export class RouterSimulator {
     ) {
         this.program       = program;
         this.wallet        = wallet;
-        this.device        = anchor.web3.Keypair.generate();
+        this.device        = deriveDevice(config.routerId);
         this.config        = config;
         this.protocolPDA   = protocolPDA;
         this.rewardMintPDA = rewardMintPDA;
@@ -65,10 +88,34 @@ export class RouterSimulator {
         this.stakePDA = getStakePDA(program.programId, this.routerPDA);
     }
 
+    /// Gives the device key enough SOL to pay for its own heartbeat fees.
+    ///
+    /// Funded by transfer from the operator, not `requestAirdrop`. The
+    /// devnet faucet is aggressively rate-limited and returns a bare
+    /// "Internal error" once you cross the line, which makes any repeated
+    /// or scheduled run fail on the second attempt. The operator already
+    /// holds SOL, so a transfer is both reliable and far cheaper than the
+    /// 1 SOL the airdrop used to request.
+    ///
+    /// Skipped entirely when the device is already funded, so re-running
+    /// against persistent device keys costs nothing after the first pass.
     private async fundDevice(): Promise<void> {
-        const connection = (this.program.provider as anchor.AnchorProvider).connection;
-        const sig = await connection.requestAirdrop(this.device.publicKey, anchor.web3.LAMPORTS_PER_SOL);
-        await connection.confirmTransaction(sig);
+        const provider   = this.program.provider as anchor.AnchorProvider;
+        const connection = provider.connection;
+
+        const balance = await connection.getBalance(this.device.publicKey);
+        if (balance >= DEVICE_MIN_LAMPORTS) return;
+
+        const topUp = DEVICE_FUND_LAMPORTS - balance;
+        const tx = new Transaction().add(
+            SystemProgram.transfer({
+                fromPubkey: this.wallet.publicKey,
+                toPubkey:   this.device.publicKey,
+                lamports:   topUp,
+            })
+        );
+        await provider.sendAndConfirm(tx, []);
+        console.log(`[${this.config.routerId}] funded device with ${(topUp / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
     }
 
     /// Registers (or re-attaches to) the router, then posts collateral
@@ -83,11 +130,31 @@ export class RouterSimulator {
         await this.fundDevice();
 
         if (existing) {
-            await this.program.methods
-                .rotateDeviceKey(this.device.publicKey)
-                .accountsPartial({ router: this.routerPDA, owner: this.wallet.publicKey })
-                .rpc();
-            console.log(`[${this.config.routerId}] already registered — rotated device key`);
+            // Only rotate when the key actually differs. rotate_device_key
+            // rejects a no-op rotation with DeviceKeyUnchanged, which is
+            // correct — rotation is a recovery action, and silently
+            // accepting a rotation to the current key would let an
+            // operator believe a compromised device had been replaced.
+            const router = await this.program.account.router.fetch(this.routerPDA);
+            // `device_pubkey` on-chain; anchor camelCases account fields on
+            // deserialize. Checked explicitly because a renamed field would
+            // otherwise surface as "Cannot read properties of undefined"
+            // three frames deep, naming neither the field nor the account.
+            if (!router.devicePubkey) {
+                throw new Error(
+                    `Router account has no devicePubkey — the vendored IDL is probably ` +
+                    `stale. Re-run \`anchor build\` and \`npm run sync-idl\`.`
+                );
+            }
+            if (router.devicePubkey.equals(this.device.publicKey)) {
+                console.log(`[${this.config.routerId}] already registered — same device key, nothing to rotate`);
+            } else {
+                await this.program.methods
+                    .rotateDeviceKey(this.device.publicKey)
+                    .accountsPartial({ router: this.routerPDA, owner: this.wallet.publicKey })
+                    .rpc();
+                console.log(`[${this.config.routerId}] already registered — rotated device key`);
+            }
         } else {
             await this.program.methods
                 .registerRouter(
@@ -290,7 +357,19 @@ export class RouterSimulator {
         console.log(`[${this.config.routerId}] starting — fail rate: ${this.config.failRate * 100}%`);
 
         while (this.running) {
-            await this.sendHeartbeat();
+            // A router that can't reach the network is a *missed* heartbeat,
+            // not a crashed simulator. Letting this throw would reject the
+            // Promise.all in main() and take every other router down with
+            // it — so a throttled RPC on one device would end the whole run.
+            try {
+                await this.sendHeartbeat();
+            } catch (err: any) {
+                this.missedCount++;
+                const why = /429|Too Many Requests/.test(String(err?.message))
+                    ? "RPC rate-limited"
+                    : (err?.message ?? "unknown error");
+                console.log(`[${this.config.routerId}] ⚠️  heartbeat failed (${why}) — counted as missed`);
+            }
             await this.sleep(intervalMs);
         }
 

@@ -100,6 +100,14 @@ services:
       - api
     ports:
       - "3000:3000"
+    environment:
+      # Used only by the Next.js server process for its own Server
+      # Component fetches, which run inside this container. Reached by
+      # the compose service name, not "localhost" — inside this
+      # container "localhost" is this container, and nothing listens on
+      # 3001 here. A plain runtime env var (no NEXT_PUBLIC_ prefix), so
+      # it works without rebuilding the image.
+      API_URL_INTERNAL: http://api:3001
 
 volumes:
   mongo-data:

@@ -3,7 +3,8 @@
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "lifecycle": "ts-node --compiler-options '{\"module\":\"commonjs\",\"target\":\"ES2020\",\"lib\":[\"ES2020\",\"DOM\"]}' scripts/full-lifecycle.ts"
+    "lifecycle": "ts-node --compiler-options '{\"module\":\"commonjs\",\"target\":\"ES2020\",\"lib\":[\"ES2020\",\"DOM\"]}' scripts/full-lifecycle.ts",
+    "seed:claimable": "ts-node --compiler-options '{\"module\":\"commonjs\",\"target\":\"ES2020\",\"lib\":[\"ES2020\",\"DOM\"]}' scripts/seed-claimable.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.0.1",

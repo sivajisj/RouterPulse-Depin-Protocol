@@ -241,6 +241,7 @@ the treasury.
 > to a multisig tomorrow, access follows automatically with nothing to
 > redeploy and no migration.
 
+
 > **Follow-up you should expect: "So you hit an RPC on every admin
 > request?"** No — it reads the projection, so it's a single indexed
 > Mongo lookup. That's deliberate. An RPC per admin call would add

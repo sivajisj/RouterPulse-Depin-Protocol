@@ -1,4 +1,23 @@
+/// Client-facing API base. Baked into the browser bundle at build time
+/// (NEXT_PUBLIC_* is inlined by `next build`), so this is what the
+/// browser itself fetches.
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+/// Server-side fetch base — used only by `get`/`tryGet` below, which run
+/// inside Next's Server Components, i.e. inside *this* container/process,
+/// not the browser.
+///
+/// This has to be a separate value from API_URL. In Docker Compose,
+/// "http://localhost:3001" is correct for the browser (the api service is
+/// port-mapped to the host) but wrong from inside the web container,
+/// where localhost is the web container's own loopback and nothing is
+/// listening on 3001 — the api container has to be reached by its
+/// service name instead. API_URL_INTERNAL is a plain runtime env var
+/// (not NEXT_PUBLIC_*), so — unlike API_URL — it can be set without a
+/// rebuild. Outside Docker (Vercel talking to Render, or `npm run dev`
+/// against a locally-running api/), server and browser share one public
+/// URL, so this falls back to API_URL and nothing extra needs setting.
+const SERVER_API_URL = process.env.API_URL_INTERNAL || API_URL;
 
 /// Solana RPC the wallet adapter connects to for signing and sending
 /// transactions. Reads still come from the API's indexed projection —
@@ -62,7 +81,7 @@ export interface Page<T> {
 /// rewriting — a cached router list showing a stale "active" for a
 /// router that just got suspended is worse than a slightly slower page.
 async function get<T>(path: string): Promise<T> {
-    const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
+    const res = await fetch(`${SERVER_API_URL}${path}`, { cache: "no-store" });
     if (!res.ok) {
         throw new Error(`API ${res.status} on ${path}`);
     }

@@ -11,6 +11,16 @@ router and watching the protocol take its money. Lead toward that.
 
 ## Before you start (~5 min, do it beforehand)
 
+**If `docker compose up` was used earlier, stop it first.** The commands
+below start indexer/API/web directly on the host, and they bind the same
+ports (3000, 3001, 27017, 6379) the compose stack does — a container
+still holding one of those ports fails the manual start with a bare
+`EADDRINUSE`, not an obviously-related error.
+
+```bash
+docker compose down          # only needed if compose was used before
+```
+
 ```bash
 # terminal 1
 solana-test-validator --reset
@@ -22,10 +32,12 @@ cd routerpulse && anchor deploy --provider.cluster http://127.0.0.1:8899
 # seed protocol + a rewarded epoch, and confirm everything works end to end
 cd ../web && npm run verify:operator     # expect 8/8
 
-# terminal 3 — off-chain stack
-cd indexer && npm start
-cd api && npm start
-cd web && npm run build && npm start
+# terminal 3 — off-chain stack. indexer and api run compiled JS, not
+# ts-node, so each needs a build first — `npm start` alone fails with
+# "Cannot find module './dist/...'" on a fresh clone with no dist/ yet.
+cd indexer && npm install && npm run build && npm start
+cd api      && npm install && npm run build && npm start
+cd web      && npm install && npm run build && npm start
 ```
 
 Check before anyone is watching:
@@ -46,6 +58,30 @@ Check before anyone is watching:
 > before an epoch can be finalized — you cannot rush it. Plan the
 > narration around that rather than standing in silence: the wait is a
 > good moment for step 6.
+
+**One-shot sanity check before you hit record** — confirms the whole
+chain (validator → indexer → API → dashboard) agrees on the same data,
+which is the thing most likely to be silently wrong after any reset:
+
+```bash
+curl -s localhost:3001/health                          # {"status":"ok",...}
+curl -s localhost:3001/api/v1/protocol | head -c 120   # NOT a 503
+curl -s -o /dev/null -w "%{http_code}\n" localhost:3000/
+```
+
+A 503 on `/api/v1/protocol` means `verify:operator` didn't run, or the
+indexer hasn't reconciled yet — reload after a few seconds before
+assuming something's broken.
+
+**Noise that will appear on screen and is not a bug:**
+- `bigint: Failed to load bindings, pure JS will be used` from the web
+  process — a missing native optional dependency, functionally
+  irrelevant, safe to talk over
+- `[DEP0040] DeprecationWarning: The 'punycode' module is deprecated` —
+  from a transitive dependency, not this code
+- Don't run the simulator against public devnet RPC during a live
+  recording — `429 Too Many Requests` is common there and would stall
+  the take. Localhost has no rate limit.
 
 ---
 
@@ -108,8 +144,13 @@ policy, it's enforced in the instruction.*
 ### 7. ⭐ Break a router — watch it get slashed
 This is the moment worth building to.
 
-Kill one simulated router (Ctrl+C, or let the 60%-failure-rate one run).
-It misses heartbeats. When the epoch closes:
+**Don't Ctrl+C the simulator here** — all three routers run in one
+process, so it kills the healthy ones along with the bad one, and there's
+nothing left on screen to contrast against. Just let it run: the
+`router-bangalore-001` config has a 60% failure rate baked in
+(`routerpulse/simulator/src/index.ts`), so it racks up missed heartbeats
+on its own while the other two keep succeeding — that contrast is the
+point. When the epoch closes:
 
 ```bash
 # force the epoch closed and show the numbers

@@ -4,6 +4,18 @@ A trustless Wi-Fi router uptime tracking and reward distribution protocol built 
 
 Inspired by the real infrastructure problem that Wi-Fi networks like Wifi Dabba are solving , operators currently self-report uptime with no way to verify it. RouterPulse replaces that with cryptographic proof stored on-chain.
 
+## ▶ Demo video
+
+**[Watch the walkthrough](https://drive.google.com/file/d/1VIwWczrdXzDgSlVvxdQto9aQTuGUPHin/view?usp=sharing)** — the running system end to end: live heartbeats
+decoded from the chain, a router registered and collateralized through
+the wallet, an epoch closing, a badly-performing router slashed, and
+rewards claimed into vesting.
+
+Everything in it runs against a real validator with real transactions.
+Nothing is mocked, and no number is one the backend invented — the
+walkthrough script is [`docs/demo.md`](docs/demo.md) if you want to
+reproduce it.
+
 ## The stack
 
 ```
